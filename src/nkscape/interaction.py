@@ -1,0 +1,49 @@
+"""The interaction matrix of an NK landscape."""
+
+from collections.abc import Sequence
+
+import numpy as np
+from numpy.typing import NDArray
+
+
+class InteractionMatrix:
+    """Interaction matrix of an NK landscape.
+
+    Entry (i, j) is 1 if the fitness contribution of decision i depends on decision j.
+    Row i therefore marks the decisions that contribution i depends on, and column j marks
+    the contributions that change when decision j is flipped. The diagonal is always 1,
+    because a contribution always depends on its own decision.
+
+    Parameters
+    ----------
+    rows
+        The N rows of the matrix, each holding N values of 0 or 1.
+
+    Raises
+    ------
+    ValueError
+        If the rows do not form a square matrix, contain values other than 0 and 1,
+        or the diagonal is not all 1.
+    """
+
+    def __init__(self, rows: Sequence[Sequence[int]] | NDArray[np.int_]) -> None:
+        try:
+            grid = np.asarray(rows)
+        except ValueError:
+            raise ValueError("all rows must have the same length") from None
+
+        if grid.ndim != 2 or grid.shape[0] != grid.shape[1]:
+            raise ValueError(f"matrix must be square (N rows, N columns), got shape {grid.shape}")
+
+        if not np.isin(grid, [0, 1]).all():
+            raise ValueError("matrix may only contain 0 and 1")
+
+        missing = [i for i in range(len(grid)) if grid[i, i] != 1]
+        if missing:
+            raise ValueError(
+                "the diagonal must be all 1 (a contribution always depends on its own "
+                f"decision); it is not 1 in rows {missing}"
+            )
+
+        self.grid: NDArray[np.int_] = grid.astype(int)
+        self.n: int = len(grid)
