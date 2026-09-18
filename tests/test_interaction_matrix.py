@@ -125,6 +125,37 @@ def test_depends_on_and_affects_tell_the_same_story() -> None:
             assert (j in m.depends_on(i)) == (i in m.affects(j))
 
 
+def test_str_of_the_firm() -> None:
+    m = nk.InteractionMatrix(FIRM)
+    expected = "\n".join(
+        [
+            "   d0 d1 d2",
+            "c0  X  X  .   K=1",
+            "c1  .  X  X   K=1",
+            "c2  X  .  X   K=1",
+        ]
+    )
+    assert str(m) == expected
+
+
+def test_str_shows_k_of_each_row() -> None:
+    lines = str(nk.InteractionMatrix(UNEVEN)).splitlines()
+    assert len(lines) == 5
+    assert [line.endswith("K=1") for line in lines[1:]] == [True, True, True, False]
+    assert lines[4].endswith("K=2")
+
+
+def test_str_stays_aligned_for_two_digit_labels() -> None:
+    n, k = 12, 3
+    rows = [[1 if (j - i) % n <= k else 0 for j in range(n)] for i in range(n)]
+    lines = str(nk.InteractionMatrix(rows)).splitlines()
+    assert len(lines) == n + 1
+    header = lines[0]
+    assert header.endswith("d10 d11")
+    for line in lines[1:]:
+        assert len(line.split("   K=")[0]) == len(header)
+
+
 def test_index_out_of_range_is_rejected() -> None:
     m = nk.InteractionMatrix(FIRM)
     with pytest.raises(IndexError):

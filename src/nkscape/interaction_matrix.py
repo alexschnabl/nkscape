@@ -51,6 +51,18 @@ class InteractionMatrix:
         self.grid: NDArray[np.int_] = grid.astype(int)
         self.n: int = len(grid)
 
+    def __str__(self) -> str:
+        """
+        The matrix as text: X where contribution i depends on decision j, K at the end of each row.
+        """
+        width = len(f"d{self.n - 1}")
+        header = " ".join(f"{f'd{j}':>{width}}" for j in range(self.n))
+        lines = [" " * width + " " + header]
+        for i in range(self.n):
+            cells = " ".join(f"{'X' if x else '.':>{width}}" for x in self.grid[i])
+            lines.append(f"{f'c{i}':>{width}} {cells}   K={self.k_per_row[i]}")
+        return "\n".join(lines)
+
     @property
     def k_per_row(self) -> NDArray[np.int_]:
         """

@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
   if the rows do not share one K.
 - `InteractionMatrix.depends_on(i)` and `InteractionMatrix.affects(j)`: read a row (decisions that
   contribution i depends on) or a column (contributions that change when decision j is flipped).
+- `print(matrix)` shows an `InteractionMatrix` as a labelled grid of `X` and `.` with K at the
+  end of each row.
 
 ## [0.0.1] - 2026-09-18
 
