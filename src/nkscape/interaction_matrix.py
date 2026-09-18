@@ -47,3 +47,22 @@ class InteractionMatrix:
 
         self.grid: NDArray[np.int_] = grid.astype(int)
         self.n: int = len(grid)
+
+    @property
+    def k_per_row(self) -> NDArray[np.int_]:
+        """K of each row: how many other decisions contribution i depends on."""
+        return self.grid.sum(axis=1) - 1
+
+    @property
+    def k(self) -> int:
+        """The K shared by all rows.
+
+        Raises
+        ------
+        ValueError
+            If the rows do not all have the same K. Use `k_per_row` in that case.
+        """
+        ks = self.k_per_row
+        if not (ks == ks[0]).all():
+            raise ValueError(f"rows have different K ({ks}); use k_per_row instead")
+        return int(ks[0])

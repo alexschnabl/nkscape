@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
 
 - `InteractionMatrix`: an N×N matrix of 0/1 built from user-supplied rows, validated to be
   square, to contain only 0 and 1, and to have an all-1 diagonal.
+- `InteractionMatrix.k_per_row` and `InteractionMatrix.k`: K is read from the matrix; `k` raises
+  if the rows do not share one K.
 
 ## [0.0.1] - 2026-09-18
 
