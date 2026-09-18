@@ -3,6 +3,7 @@ The interaction matrix of an NK landscape.
 """
 
 from collections.abc import Sequence
+from typing import Self
 
 import numpy as np
 from numpy.typing import NDArray
@@ -54,6 +55,42 @@ class InteractionMatrix:
         self.grid.setflags(write=False)
         self.n: int = len(grid)
 
+    @classmethod
+    def next_k(cls, n: int, k: int) -> Self:
+        """
+        Matrix in which contribution i depends on decision i and the next k decisions.
+
+        The pattern wraps around: after decision n - 1 comes decision 0.
+        """
+        _check_n_k(n, k)
+        grid = np.zeros((n, n), dtype=int)
+        for i in range(n):
+            for step in range(k + 1):
+                grid[i, (i + step) % n] = 1
+        return cls(grid)
+
+    @classmethod
+    def random_k(cls, n: int, k: int, rng: int | np.random.Generator) -> Self:
+        """
+        Matrix in which contribution i depends on decision i and k randomly chosen others.
+
+        Parameters
+        ----------
+        n, k
+            Number of decisions, and number of other decisions per contribution.
+        rng
+            A seed, or a generator to draw from. The same seed always gives the same matrix.
+        """
+        _check_n_k(n, k)
+        rng = np.random.default_rng(rng)
+        grid = np.zeros((n, n), dtype=int)
+        for i in range(n):
+            grid[i, i] = 1
+            others = [j for j in range(n) if j != i]
+            for j in rng.choice(others, size=k, replace=False):
+                grid[i, j] = 1
+        return cls(grid)
+
     def __str__(self) -> str:
         """
         The matrix as text: X where contribution i depends on decision j, K at the end of each row.
@@ -103,3 +140,13 @@ class InteractionMatrix:
         Always includes j itself.
         """
         return np.flatnonzero(self.grid[:, j])
+
+
+def _check_n_k(n: int, k: int) -> None:
+    """
+    Reject values of n and k that cannot describe an NK landscape.
+    """
+    if n < 1:
+        raise ValueError(f"n must be at least 1, got {n}")
+    if not 0 <= k <= n - 1:
+        raise ValueError(f"k must be between 0 and n - 1 = {n - 1}, got {k}")

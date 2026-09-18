@@ -177,6 +177,73 @@ def test_str_stays_aligned_for_two_digit_labels() -> None:
         assert len(line.split("   K=")[0]) == len(header)
 
 
+def test_next_k_builds_the_firm() -> None:
+    assert np.array_equal(nk.InteractionMatrix.next_k(3, 1).grid, FIRM)
+
+
+def test_next_k_with_k_zero_is_only_the_diagonal() -> None:
+    assert np.array_equal(nk.InteractionMatrix.next_k(4, 0).grid, np.eye(4))
+
+
+def test_next_k_with_k_n_minus_1_is_all_ones() -> None:
+    assert np.array_equal(nk.InteractionMatrix.next_k(4, 3).grid, np.ones((4, 4)))
+
+
+@pytest.mark.parametrize(("n", "k"), [(1, 0), (3, 1), (6, 2), (12, 3), (12, 11)])
+def test_next_k_has_the_requested_k_in_rows_and_columns(n: int, k: int) -> None:
+    m = nk.InteractionMatrix.next_k(n, k)
+    assert m.n == n
+    assert m.k == k
+    assert np.array_equal(m.grid.sum(axis=0), [k + 1] * n)
+
+
+@pytest.mark.parametrize(("n", "k"), [(3, -1), (3, 3), (0, 0)])
+def test_next_k_rejects_impossible_n_and_k(n: int, k: int) -> None:
+    with pytest.raises(ValueError, match="must be"):
+        nk.InteractionMatrix.next_k(n, k)
+
+
+def test_random_k_same_seed_gives_same_matrix() -> None:
+    a = nk.InteractionMatrix.random_k(12, 3, rng=42)
+    b = nk.InteractionMatrix.random_k(12, 3, rng=42)
+    assert np.array_equal(a.grid, b.grid)
+
+
+def test_random_k_different_seeds_give_different_matrices() -> None:
+    a = nk.InteractionMatrix.random_k(12, 3, rng=42)
+    b = nk.InteractionMatrix.random_k(12, 3, rng=43)
+    assert not np.array_equal(a.grid, b.grid)
+
+
+@pytest.mark.parametrize(("n", "k"), [(1, 0), (3, 1), (6, 2), (12, 3), (12, 11)])
+def test_random_k_has_the_requested_k_in_every_row(n: int, k: int) -> None:
+    m = nk.InteractionMatrix.random_k(n, k, rng=7)
+    assert m.n == n
+    assert m.k == k
+
+
+def test_random_k_with_a_generator_continues_and_can_be_replayed() -> None:
+    gen = np.random.default_rng(42)
+    a = nk.InteractionMatrix.random_k(12, 3, rng=gen)
+    b = nk.InteractionMatrix.random_k(12, 3, rng=gen)
+    assert not np.array_equal(a.grid, b.grid)
+
+    replay = np.random.default_rng(42)
+    assert np.array_equal(nk.InteractionMatrix.random_k(12, 3, rng=replay).grid, a.grid)
+    assert np.array_equal(nk.InteractionMatrix.random_k(12, 3, rng=replay).grid, b.grid)
+
+
+def test_random_k_extremes_leave_nothing_to_chance() -> None:
+    assert np.array_equal(nk.InteractionMatrix.random_k(4, 0, rng=1).grid, np.eye(4))
+    assert np.array_equal(nk.InteractionMatrix.random_k(4, 3, rng=1).grid, np.ones((4, 4)))
+
+
+@pytest.mark.parametrize(("n", "k"), [(3, -1), (3, 3), (0, 0)])
+def test_random_k_rejects_impossible_n_and_k(n: int, k: int) -> None:
+    with pytest.raises(ValueError, match="must be"):
+        nk.InteractionMatrix.random_k(n, k, rng=1)
+
+
 def test_index_out_of_range_is_rejected() -> None:
     m = nk.InteractionMatrix(FIRM)
     with pytest.raises(IndexError):
