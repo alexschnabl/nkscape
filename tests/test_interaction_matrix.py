@@ -90,3 +90,44 @@ def test_k_is_refused_for_uneven_matrix() -> None:
 def test_k_is_a_plain_int() -> None:
     m = nk.InteractionMatrix(FIRM)
     assert type(m.k) is int
+
+
+def test_depends_on_reads_rows() -> None:
+    m = nk.InteractionMatrix(FIRM)
+    assert np.array_equal(m.depends_on(0), [0, 1])
+    assert np.array_equal(m.depends_on(1), [1, 2])
+    assert np.array_equal(m.depends_on(2), [0, 2])
+
+
+def test_affects_reads_columns() -> None:
+    m = nk.InteractionMatrix(FIRM)
+    assert np.array_equal(m.affects(0), [0, 2])
+    assert np.array_equal(m.affects(1), [0, 1])
+    assert np.array_equal(m.affects(2), [1, 2])
+
+
+def test_depends_on_and_affects_of_uneven_matrix() -> None:
+    m = nk.InteractionMatrix(UNEVEN)
+    assert np.array_equal(m.depends_on(3), [1, 2, 3])
+    assert np.array_equal(m.affects(1), [0, 1, 3])
+
+
+def test_depends_on_agrees_with_k_per_row() -> None:
+    m = nk.InteractionMatrix(UNEVEN)
+    for i in range(m.n):
+        assert len(m.depends_on(i)) == m.k_per_row[i] + 1
+
+
+def test_depends_on_and_affects_tell_the_same_story() -> None:
+    m = nk.InteractionMatrix(UNEVEN)
+    for i in range(m.n):
+        for j in range(m.n):
+            assert (j in m.depends_on(i)) == (i in m.affects(j))
+
+
+def test_index_out_of_range_is_rejected() -> None:
+    m = nk.InteractionMatrix(FIRM)
+    with pytest.raises(IndexError):
+        m.depends_on(5)
+    with pytest.raises(IndexError):
+        m.affects(5)

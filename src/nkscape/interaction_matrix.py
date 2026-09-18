@@ -1,4 +1,6 @@
-"""The interaction matrix of an NK landscape."""
+"""
+The interaction matrix of an NK landscape.
+"""
 
 from collections.abc import Sequence
 
@@ -7,7 +9,8 @@ from numpy.typing import NDArray
 
 
 class InteractionMatrix:
-    """Interaction matrix of an NK landscape.
+    """
+    Interaction matrix of an NK landscape.
 
     Entry (i, j) is 1 if the fitness contribution of decision i depends on decision j.
     Row i therefore marks the decisions that contribution i depends on, and column j marks
@@ -50,12 +53,15 @@ class InteractionMatrix:
 
     @property
     def k_per_row(self) -> NDArray[np.int_]:
-        """K of each row: how many other decisions contribution i depends on."""
+        """
+        K of each row: how many other decisions contribution i depends on.
+        """
         return self.grid.sum(axis=1) - 1
 
     @property
     def k(self) -> int:
-        """The K shared by all rows.
+        """
+        The K shared by all rows.
 
         Raises
         ------
@@ -66,3 +72,19 @@ class InteractionMatrix:
         if not (ks == ks[0]).all():
             raise ValueError(f"rows have different K ({ks}); use k_per_row instead")
         return int(ks[0])
+
+    def depends_on(self, i: int) -> NDArray[np.intp]:
+        """
+        Decisions that contribution i depends on (row i), in ascending order.
+
+        Always includes i itself.
+        """
+        return np.flatnonzero(self.grid[i])
+
+    def affects(self, j: int) -> NDArray[np.intp]:
+        """
+        Contributions that change when decision j is flipped (column j), in ascending order.
+
+        Always includes j itself.
+        """
+        return np.flatnonzero(self.grid[:, j])
