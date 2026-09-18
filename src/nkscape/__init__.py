@@ -2,7 +2,7 @@
 
 from importlib.metadata import version
 
-from nkscape.interaction import InteractionMatrix
+from nkscape.interaction_matrix import InteractionMatrix
 
 __version__ = version("nkscape")
 
