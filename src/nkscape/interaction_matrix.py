@@ -17,6 +17,8 @@ class InteractionMatrix:
     the contributions that change when decision j is flipped. The diagonal is always 1,
     because a contribution always depends on its own decision.
 
+    The matrix cannot be changed after creation; build a new one instead.
+
     Parameters
     ----------
     rows
@@ -49,6 +51,7 @@ class InteractionMatrix:
             )
 
         self.grid: NDArray[np.int_] = grid.astype(int)
+        self.grid.setflags(write=False)
         self.n: int = len(grid)
 
     def __str__(self) -> str:

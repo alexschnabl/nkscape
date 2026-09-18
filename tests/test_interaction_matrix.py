@@ -58,6 +58,27 @@ def test_hole_in_diagonal_is_rejected() -> None:
         nk.InteractionMatrix([[1, 0, 0], [0, 0, 1], [0, 0, 1]])
 
 
+def test_writing_into_the_grid_is_refused() -> None:
+    m = nk.InteractionMatrix(FIRM)
+    with pytest.raises(ValueError, match="read-only"):
+        m.grid[1, 1] = 0
+    assert np.array_equal(m.grid, FIRM)
+
+
+def test_the_users_own_array_stays_writable() -> None:
+    rows = np.array(FIRM)
+    nk.InteractionMatrix(rows)
+    rows[0, 2] = 1
+    assert rows[0, 2] == 1
+
+
+def test_later_changes_to_the_input_do_not_leak_in() -> None:
+    rows = np.array(FIRM)
+    m = nk.InteractionMatrix(rows)
+    rows[0, 2] = 1
+    assert np.array_equal(m.grid, FIRM)
+
+
 def test_k_of_uniform_matrix() -> None:
     m = nk.InteractionMatrix(FIRM)
     assert m.k == 1
