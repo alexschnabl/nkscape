@@ -1,0 +1,35 @@
+# Claude Code working files (kept local)
+CLAUDE.md
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Paper PDFs (copyrighted, local only)
+papers/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Docs build
+docs/_build/
+
+# Experiment outputs
+experiments/**/output/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
