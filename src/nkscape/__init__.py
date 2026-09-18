@@ -1,4 +1,6 @@
-"""nkscape: Kauffman NK fitness landscapes and NK-based models of organisations."""
+"""
+nkscape: Kauffman NK fitness landscapes and NK-based models of organisations.
+"""
 
 from importlib.metadata import version
 
