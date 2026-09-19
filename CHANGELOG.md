@@ -20,6 +20,8 @@ All notable changes to this project are documented here. The format follows
 - `ContributionTables`: one fitness-contribution table per decision, shaped to fit its row of the
   matrix (axes follow `depends_on`). Built from hand-made tables or with
   `ContributionTables.random(matrix, rng)`; validated and read-only.
+- `ContributionTables.contributions(config)`: the N fitness contributions of one configuration
+  (any sequence of N zeros and ones).
 - The grid of an `InteractionMatrix` is read-only after creation and independent of the array
   it was built from.
 - `print(matrix)` shows an `InteractionMatrix` as a labelled grid of `X` and `.` with K at the

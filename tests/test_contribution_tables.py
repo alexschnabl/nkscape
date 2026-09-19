@@ -94,6 +94,86 @@ def test_random_with_a_generator_continues_and_can_be_replayed() -> None:
     assert np.array_equal(b2.tables[0], b.tables[0])
 
 
+def test_contributions_of_the_firm() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    assert np.array_equal(t.contributions([1, 0, 1]), [0.2, 0.2, 0.9])
+
+
+def test_contributions_reproduce_the_cube_from_lesson_1() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    cube = {
+        (0, 0, 0): 2.1 / 3,
+        (0, 0, 1): 1.2 / 3,
+        (0, 1, 0): 1.0 / 3,
+        (0, 1, 1): 1.1 / 3,
+        (1, 0, 0): 1.0 / 3,
+        (1, 0, 1): 1.3 / 3,
+        (1, 1, 0): 1.3 / 3,
+        (1, 1, 1): 2.6 / 3,
+    }
+    for config, fitness in cube.items():
+        assert t.contributions(config).mean() == pytest.approx(fitness)
+
+
+def test_contributions_accept_list_tuple_and_numpy_row() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    expected = [0.2, 0.2, 0.9]
+    assert np.array_equal(t.contributions([1, 0, 1]), expected)
+    assert np.array_equal(t.contributions((1, 0, 1)), expected)
+    assert np.array_equal(t.contributions(np.array([1, 0, 1])), expected)
+    assert np.array_equal(t.contributions([True, False, True]), expected)
+
+
+def test_contributions_are_a_row_of_n_decimals() -> None:
+    result = nk.ContributionTables(FIRM, FIRM_TABLES).contributions([0, 0, 0])
+    assert result.shape == (3,)
+    assert result.dtype == np.float64
+
+
+def test_configuration_of_wrong_length_is_rejected() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    with pytest.raises(ValueError, match=r"must have 3 values.*got shape \(2,\)"):
+        t.contributions([1, 0])
+
+
+def test_nested_configuration_is_rejected() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    with pytest.raises(ValueError, match=r"got shape \(1, 3\)"):
+        t.contributions([[1, 0, 1]])
+
+
+def test_configuration_with_other_values_is_rejected() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    with pytest.raises(ValueError, match="0 and 1"):
+        t.contributions([1, 2, 1])
+
+
+def test_contributions_of_an_uneven_matrix() -> None:
+    t = nk.ContributionTables.random(UNEVEN, rng=5)
+    config = [1, 0, 1, 1]
+    result = t.contributions(config)
+    assert result[0] == t.tables[0][1, 0]
+    assert result[3] == t.tables[3][0, 1, 1]
+
+
+def test_with_k_zero_each_contribution_depends_only_on_its_own_decision() -> None:
+    t = nk.ContributionTables.random(nk.InteractionMatrix.next_k(4, 0), rng=5)
+    result = t.contributions([1, 0, 0, 1])
+    assert np.array_equal(result, [t.tables[0][1], t.tables[1][0], t.tables[2][0], t.tables[3][1]])
+
+
+def test_flipping_a_decision_changes_exactly_the_contributions_it_affects() -> None:
+    m = nk.InteractionMatrix.random_k(6, 2, rng=11)
+    t = nk.ContributionTables.random(m, rng=12)
+    config = np.array([1, 0, 0, 1, 1, 0])
+    before = t.contributions(config)
+    for j in range(m.n):
+        flipped = config.copy()
+        flipped[j] = 1 - flipped[j]
+        changed = np.flatnonzero(t.contributions(flipped) != before)
+        assert np.array_equal(changed, m.affects(j))
+
+
 def test_writing_into_a_table_is_refused() -> None:
     t = nk.ContributionTables(FIRM, FIRM_TABLES)
     with pytest.raises(ValueError, match="read-only"):

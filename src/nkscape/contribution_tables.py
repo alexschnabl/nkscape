@@ -74,3 +74,32 @@ class ContributionTables:
         rng = np.random.default_rng(rng)
         shapes = [(2,) * len(matrix.depends_on(i)) for i in range(matrix.n)]
         return cls(matrix, [rng.random(shape) for shape in shapes])
+
+    def contributions(self, config: ArrayLike) -> NDArray[np.float64]:
+        """
+        The fitness contributions of one configuration, one value per decision.
+
+        Parameters
+        ----------
+        config
+            The configuration: N values of 0 or 1, one per decision.
+
+        Raises
+        ------
+        ValueError
+            If the configuration does not have N values or contains anything but 0 and 1.
+        """
+        row = np.asarray(config)
+        if row.shape != (self.n,):
+            raise ValueError(
+                f"configuration must have {self.n} values (one per decision), got shape {row.shape}"
+            )
+        if not np.isin(row, [0, 1]).all():
+            raise ValueError("configuration may only contain 0 and 1")
+        row = row.astype(int)
+
+        values = []
+        for i in range(self.n):
+            answers = tuple(row[self.matrix.depends_on(i)])
+            values.append(self.tables[i][answers])
+        return np.array(values)
