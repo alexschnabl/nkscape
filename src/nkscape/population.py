@@ -16,7 +16,7 @@ class Population:
     """
     Where every agent was at the end of the last period, and what that was worth.
 
-    Row a belongs to agent a. Both arrays are read-only. Every agent and the interaction rule
+    Row a belongs to agent a. Both arrays are read-only. Every agent and the population rule
     get the same snapshot, so nobody sees a move made in the current period.
     """
 
@@ -24,7 +24,7 @@ class Population:
     fitness: NDArray[np.floating]
 
 
-class Interaction(ABC):
+class PopulationRule(ABC):
     """
     A rule applied to the whole population once per period, after every agent has stepped.
 
@@ -33,7 +33,7 @@ class Interaction(ABC):
     """
 
     @abstractmethod
-    def apply(
+    def decide(
         self,
         population: Population,
         proposals: tuple[NDArray[np.int8], ...],
@@ -54,7 +54,7 @@ class Interaction(ABC):
         landscape
             The landscape.
         rng
-            The interaction's own random stream.
+            The rule's own random stream.
         """
 
     def record(self) -> dict[str, float]:

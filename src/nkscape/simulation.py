@@ -11,7 +11,7 @@ from numpy.typing import ArrayLike, NDArray
 from nkscape.agent import Agent
 from nkscape.configuration import check_configuration
 from nkscape.landscape import Landscape, get_enumeration_limit
-from nkscape.population import Interaction, Population
+from nkscape.population import Population, PopulationRule
 
 CUBE_CELLS_WORTH_ONE_AGENT_PERIOD = 40_000
 
@@ -23,14 +23,14 @@ class RunResult:
 
     `configs[a, t]` is the configuration of agent a after period t and `fitness[a, t]` its
     fitness; t = 0 is the start. `extra[name][a, t]` holds what the agents' `record` returned,
-    NaN where an agent does not record that name. `interaction_extra[name][t]` holds what the
-    interaction rule's `record` returned. All arrays are read-only.
+    NaN where an agent does not record that name. `rule_extra[name][t]` holds what the
+    population rule's `record` returned. All arrays are read-only.
     """
 
     configs: NDArray[np.int8]
     fitness: NDArray[np.floating]
     extra: dict[str, NDArray[np.float64]]
-    interaction_extra: dict[str, NDArray[np.float64]]
+    rule_extra: dict[str, NDArray[np.float64]]
 
 
 def run(
@@ -39,15 +39,15 @@ def run(
     periods: int,
     rng: int | np.random.Generator,
     starts: ArrayLike | None = None,
-    interaction: Interaction | None = None,
+    rule: PopulationRule | None = None,
     build_cube: bool | None = None,
 ) -> RunResult:
     """
     Let a population of agents walk a landscape for a number of periods.
 
-    In every period all agents step, each seeing where everybody was at the end of the last
-    period; then the interaction rule, if any, decides what is really adopted; then every agent's
-    `after_period` is told the outcome.
+    Every period runs in this order: every agent's `before_period`; every agent's `step`, each
+    seeing where everybody was at the end of the last period; the population rule, if any, decides
+    what is really adopted; every agent's `after_period` is told the outcome.
 
     Parameters
     ----------
@@ -58,12 +58,12 @@ def run(
     periods
         How many periods to run.
     rng
-        A seed, or a generator. It is split into one stream for the interaction rule and, for
+        A seed, or a generator. It is split into one stream for the population rule and, for
         every agent, one stream for its random start and one for its steps. Without an
-        interaction rule an agent therefore walks the same way alone as in a crowd.
+        population rule an agent therefore walks the same way alone as in a crowd.
     starts
         Where the agents start, one row per agent. Drawn at random if not given.
-    interaction
+    rule
         A rule applied to the whole population after every agent has stepped. Without one, every
         agent gets its first choice.
     build_cube
@@ -87,16 +87,16 @@ def run(
     if build_cube or (build_cube is None and pays_off):
         landscape.fitness_cube()
 
-    interaction_rng, agents_rng = np.random.default_rng(rng).spawn(2)
+    rule_rng, agents_rng = np.random.default_rng(rng).spawn(2)
     streams = [stream.spawn(2) for stream in agents_rng.spawn(count)]
-    recorders: list[Agent | Interaction] = [*agents]
-    if interaction is not None:
-        recorders.append(interaction)
+    recorders: list[Agent | PopulationRule] = [*agents]
+    if rule is not None:
+        recorders.append(rule)
 
     configs = np.empty((count, periods + 1, n), dtype=np.int8)
     fitness = np.empty((count, periods + 1), dtype=landscape.tables.dtype)
     extra: dict[str, NDArray[np.float64]] = {}
-    interaction_extra: dict[str, NDArray[np.float64]] = {}
+    rule_extra: dict[str, NDArray[np.float64]] = {}
     names: list[set[str]] = []
 
     if starts is None:
@@ -108,6 +108,9 @@ def run(
     population = Population(configs[:, 0], fitness[:, 0])
     for t in range(periods + 1):
         if t > 0:
+            for a, agent in enumerate(agents):
+                agent.before_period(population.configs[a], landscape, streams[a][1], population)
+
             proposals: list[NDArray[np.int8]] = []
             for a, agent in enumerate(agents):
                 here, step_rng = population.configs[a], streams[a][1]
@@ -117,12 +120,10 @@ def run(
                 proposal.setflags(write=False)
                 proposals.append(proposal)
 
-            if interaction is None:
+            if rule is None:
                 configs[:, t] = [proposal[0] for proposal in proposals]
             else:
-                adopted = interaction.apply(
-                    population, tuple(proposals), landscape, interaction_rng
-                )
+                adopted = rule.decide(population, tuple(proposals), landscape, rule_rng)
                 configs[:, t] = check_configuration(adopted, n, count)
 
         for a in range(count):
@@ -138,7 +139,7 @@ def run(
 
         for r, recorder in enumerate(recorders):
             recorded = recorder.record()
-            who = f"agent {r}" if r < count else "the interaction rule"
+            who = f"agent {r}" if r < count else "the population rule"
             if t == 0:
                 names.append(set(recorded))
             elif set(recorded) != names[r]:
@@ -152,10 +153,10 @@ def run(
                         extra[name] = np.full((count, periods + 1), np.nan)
                     extra[name][r, t] = value
                 else:
-                    if name not in interaction_extra:
-                        interaction_extra[name] = np.full(periods + 1, np.nan)
-                    interaction_extra[name][t] = value
+                    if name not in rule_extra:
+                        rule_extra[name] = np.full(periods + 1, np.nan)
+                    rule_extra[name][t] = value
 
-    for array in (configs, fitness, *extra.values(), *interaction_extra.values()):
+    for array in (configs, fitness, *extra.values(), *rule_extra.values()):
         array.setflags(write=False)
-    return RunResult(configs, fitness, extra, interaction_extra)
+    return RunResult(configs, fitness, extra, rule_extra)
