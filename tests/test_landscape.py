@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from itertools import product
 
 import numpy as np
@@ -136,6 +136,40 @@ def test_looking_at_every_configuration_is_refused_above_the_limit() -> None:
 def test_looking_at_every_configuration_works_at_the_limit() -> None:
     land = nk.Landscape.next_k(24, 0, rng=1)
     assert land.fitness_cube().shape == (2,) * 24
+
+
+@pytest.fixture
+def restore_enumeration_limit() -> Iterator[None]:
+    yield
+    nk.set_enumeration_limit(24)
+
+
+def test_the_default_enumeration_limit_is_24() -> None:
+    assert nk.get_enumeration_limit() == 24
+
+
+@pytest.mark.usefixtures("restore_enumeration_limit")
+def test_the_enumeration_limit_can_be_changed() -> None:
+    nk.set_enumeration_limit(5)
+    assert nk.get_enumeration_limit() == 5
+    assert nk.Landscape.next_k(5, 1, rng=1).count_peaks() >= 1
+    with pytest.raises(ValueError, match="above the limit of 5"):
+        nk.Landscape.next_k(6, 1, rng=1).fitness_cube()
+
+    nk.set_enumeration_limit(6)
+    assert nk.Landscape.next_k(6, 1, rng=1).count_peaks() >= 1
+
+
+def test_the_refusal_says_how_much_memory_and_how_to_raise_the_limit() -> None:
+    land = nk.Landscape.next_k(30, 0, rng=1)
+    with pytest.raises(ValueError, match=r"about 17\.2 GB.*nk\.set_enumeration_limit\(30\)"):
+        land.fitness_cube()
+
+
+def test_an_enumeration_limit_below_1_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least 1"):
+        nk.set_enumeration_limit(0)
+    assert nk.get_enumeration_limit() == 24
 
 
 def test_with_random_tables_keeps_the_given_matrix() -> None:

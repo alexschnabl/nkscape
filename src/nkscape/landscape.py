@@ -10,8 +10,37 @@ from numpy.typing import ArrayLike, NDArray
 from nkscape.contribution_tables import ContributionTables
 from nkscape.interaction_matrix import InteractionMatrix
 
-# Above this N, holding the fitness of all 2^N configurations takes too much memory.
-MAX_N_FOR_FULL_ENUMERATION = 24
+# Looking at every configuration holds 2^N fitness values in memory: about 16 bytes per
+# configuration while the cube is built, 8 bytes afterwards. N = 24 stays below 0.3 GB.
+DEFAULT_ENUMERATION_LIMIT = 24
+
+_enumeration_limit = DEFAULT_ENUMERATION_LIMIT
+
+
+def get_enumeration_limit() -> int:
+    """
+    The largest N for which every configuration of a landscape may be looked at.
+    """
+    return _enumeration_limit
+
+
+def set_enumeration_limit(n: int) -> None:
+    """
+    Change the largest N for which every configuration of a landscape may be looked at.
+
+    The limit protects against running out of memory; it never changes a result. Building the
+    fitness cube needs about 16 bytes per configuration: 0.3 GB for N = 24, 4.3 GB for N = 28,
+    17 GB for N = 30, doubling with every further decision.
+
+    Parameters
+    ----------
+    n
+        The new limit, at least 1. The default is 24.
+    """
+    global _enumeration_limit
+    if n < 1:
+        raise ValueError(f"the limit must be at least 1, got {n}")
+    _enumeration_limit = n
 
 
 class Landscape:
@@ -111,13 +140,16 @@ class Landscape:
         Raises
         ------
         ValueError
-            If N is larger than 24, because the array holds all 2^N fitness values.
+            If N is above the enumeration limit (24 unless changed with
+            `set_enumeration_limit`), because the array holds all 2^N fitness values.
         """
         if self._fitness_cube is None:
-            if self.n > MAX_N_FOR_FULL_ENUMERATION:
+            if self.n > _enumeration_limit:
                 raise ValueError(
                     f"looking at every configuration needs 2^N fitness values; N = {self.n} "
-                    f"is above the limit of {MAX_N_FOR_FULL_ENUMERATION}"
+                    f"is above the limit of {_enumeration_limit}. Building the cube for "
+                    f"N = {self.n} takes about {16 * 2**self.n / 1e9:.1f} GB of memory; if this "
+                    f"machine has that, raise the limit with nk.set_enumeration_limit({self.n})"
                 )
             total = np.zeros((2,) * self.n)
             for i in range(self.n):
