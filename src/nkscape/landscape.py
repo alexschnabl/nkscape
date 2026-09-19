@@ -10,6 +10,9 @@ from numpy.typing import ArrayLike, NDArray
 from nkscape.contribution_tables import ContributionTables
 from nkscape.interaction_matrix import InteractionMatrix
 
+# Above this N, holding the fitness of all 2^N configurations takes too much memory.
+MAX_N_FOR_FULL_ENUMERATION = 24
+
 
 class Landscape:
     """
@@ -36,6 +39,7 @@ class Landscape:
         self.matrix: InteractionMatrix = matrix
         self.tables: ContributionTables = tables
         self.n: int = matrix.n
+        self._fitness_cube: NDArray[np.float64] | None = None
 
     @classmethod
     def with_random_tables(cls, matrix: InteractionMatrix, rng: int | np.random.Generator) -> Self:
@@ -92,4 +96,57 @@ class Landscape:
         """
         The fitness of one configuration: the average of its contributions.
         """
-        return float(self.contributions(config).mean())
+        total = 0.0
+        for value in self.contributions(config):
+            total += value
+        return float(total / self.n)
+
+    def fitness_cube(self) -> NDArray[np.float64]:
+        """
+        The fitness of every configuration, as an array with N axes of length 2.
+
+        The position is the configuration: `cube[1, 0, 1]` is the fitness of 101.
+        Computed on first use and then kept.
+
+        Raises
+        ------
+        ValueError
+            If N is larger than 24, because the array holds all 2^N fitness values.
+        """
+        if self._fitness_cube is None:
+            if self.n > MAX_N_FOR_FULL_ENUMERATION:
+                raise ValueError(
+                    f"looking at every configuration needs 2^N fitness values; N = {self.n} "
+                    f"is above the limit of {MAX_N_FOR_FULL_ENUMERATION}"
+                )
+            total = np.zeros((2,) * self.n)
+            for i in range(self.n):
+                total += self.tables.contribution_cube(i)
+            cube = total / self.n
+            cube.setflags(write=False)
+            self._fitness_cube = cube
+        return self._fitness_cube
+
+    def peaks(self) -> NDArray[np.intp]:
+        """
+        The local optima: configurations that no single-decision change improves.
+
+        One row per peak. A configuration whose best neighbour is exactly as good counts as a peak.
+        """
+        cube = self.fitness_cube()
+        is_peak = np.ones(cube.shape, dtype=bool)
+        for j in range(self.n):
+            is_peak &= cube >= np.flip(cube, axis=j)
+        return np.argwhere(is_peak)
+
+    def count_peaks(self) -> int:
+        """
+        The number of local optima.
+        """
+        return len(self.peaks())
+
+    def global_max(self) -> float:
+        """
+        The highest fitness on the landscape.
+        """
+        return float(self.fitness_cube().max())

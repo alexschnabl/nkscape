@@ -103,3 +103,14 @@ class ContributionTables:
             answers = tuple(row[self.matrix.depends_on(i)])
             values.append(self.tables[i][answers])
         return np.array(values)
+
+    def contribution_cube(self, i: int) -> NDArray[np.float64]:
+        """
+        Contribution i of every configuration, as an array with N axes of length 2.
+
+        The position is the configuration: `cube[1, 0, 1]` is contribution i of 101.
+        No numbers are copied; the table is only viewed along the decisions it does not
+        depend on.
+        """
+        shape = [2 if x else 1 for x in self.matrix.grid[i]]
+        return np.broadcast_to(self.tables[i].reshape(shape), (2,) * self.n)

@@ -1,3 +1,5 @@
+from itertools import product
+
 import numpy as np
 import pytest
 from numpy.typing import ArrayLike
@@ -172,6 +174,30 @@ def test_flipping_a_decision_changes_exactly_the_contributions_it_affects() -> N
         flipped[j] = 1 - flipped[j]
         changed = np.flatnonzero(t.contributions(flipped) != before)
         assert np.array_equal(changed, m.affects(j))
+
+
+def test_contribution_cube_of_the_firm() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES)
+    cube = t.contribution_cube(2)
+    assert cube.shape == (2, 2, 2)
+    assert cube[1, 0, 1] == 0.9
+    assert cube[1, 1, 1] == 0.9
+    assert cube[0, 0, 1] == 0.2
+
+
+def test_contribution_cube_agrees_with_contributions_everywhere() -> None:
+    t = nk.ContributionTables.random(UNEVEN, rng=8)
+    for config in product([0, 1], repeat=t.n):
+        expected = t.contributions(config)
+        for i in range(t.n):
+            assert t.contribution_cube(i)[config] == expected[i]
+
+
+def test_contribution_cube_copies_nothing_and_is_read_only() -> None:
+    t = nk.ContributionTables.random(UNEVEN, rng=8)
+    cube = t.contribution_cube(0)
+    assert np.shares_memory(cube, t.tables[0])
+    assert not cube.flags.writeable
 
 
 def test_writing_into_a_table_is_refused() -> None:

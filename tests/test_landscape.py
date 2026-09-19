@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from itertools import product
 
 import numpy as np
 import pytest
@@ -60,6 +61,81 @@ def test_bad_configuration_is_rejected() -> None:
     land = nk.Landscape(FIRM, FIRM_TABLES)
     with pytest.raises(ValueError, match="must have 3 values"):
         land.fitness([1, 0])
+
+
+def flip(config: tuple[int, ...], j: int) -> tuple[int, ...]:
+    return (*config[:j], 1 - config[j], *config[j + 1 :])
+
+
+def test_fitness_cube_of_the_firm() -> None:
+    cube = nk.Landscape(FIRM, FIRM_TABLES).fitness_cube()
+    assert cube.shape == (2, 2, 2)
+    for config, fitness in CUBE.items():
+        assert cube[config] == pytest.approx(fitness)
+
+
+def test_peaks_of_the_firm() -> None:
+    land = nk.Landscape(FIRM, FIRM_TABLES)
+    assert np.array_equal(land.peaks(), [[0, 0, 0], [1, 1, 1]])
+    assert land.count_peaks() == 2
+    assert land.global_max() == pytest.approx(2.6 / 3)
+    assert type(land.global_max()) is float
+
+
+@pytest.mark.parametrize("k", [0, 2, 7])
+def test_fitness_cube_equals_fitness_bit_for_bit(k: int) -> None:
+    land = nk.Landscape.random_k(8, k, rng=21)
+    cube = land.fitness_cube()
+    for config in product([0, 1], repeat=land.n):
+        assert cube[config] == land.fitness(config)
+
+
+@pytest.mark.parametrize("k", [0, 2, 7])
+def test_peaks_are_exactly_the_configurations_no_flip_improves(k: int) -> None:
+    land = nk.Landscape.random_k(8, k, rng=22)
+    peaks = {tuple(int(d) for d in row) for row in land.peaks()}
+    for config in product([0, 1], repeat=land.n):
+        here = land.fitness(config)
+        no_flip_improves = all(land.fitness(flip(config, j)) <= here for j in range(land.n))
+        assert (config in peaks) == no_flip_improves
+
+
+@pytest.mark.parametrize("n", [1, 5, 10])
+@pytest.mark.parametrize("seed", [1, 2, 3])
+def test_k_zero_has_exactly_one_peak(n: int, seed: int) -> None:
+    assert nk.Landscape.random_k(n, 0, rng=seed).count_peaks() == 1
+
+
+def test_the_global_maximum_is_a_peak() -> None:
+    land = nk.Landscape.random_k(10, 4, rng=23)
+    assert land.global_max() in [land.fitness(peak) for peak in land.peaks()]
+
+
+def test_a_tie_between_neighbours_counts_as_a_peak() -> None:
+    m = nk.InteractionMatrix.next_k(2, 0)
+    tables = nk.ContributionTables(m, [[0.5, 0.5], [0.2, 0.8]])
+    land = nk.Landscape(m, tables)
+    assert np.array_equal(land.peaks(), [[0, 1], [1, 1]])
+
+
+def test_fitness_cube_is_read_only_and_computed_once() -> None:
+    land = nk.Landscape(FIRM, FIRM_TABLES)
+    cube = land.fitness_cube()
+    assert land.fitness_cube() is cube
+    with pytest.raises(ValueError, match="read-only"):
+        cube[0, 0, 0] = 1.0
+
+
+def test_looking_at_every_configuration_is_refused_above_the_limit() -> None:
+    land = nk.Landscape.next_k(25, 0, rng=1)
+    for look in (land.fitness_cube, land.peaks, land.count_peaks, land.global_max):
+        with pytest.raises(ValueError, match="above the limit of 24"):
+            look()
+
+
+def test_looking_at_every_configuration_works_at_the_limit() -> None:
+    land = nk.Landscape.next_k(24, 0, rng=1)
+    assert land.fitness_cube().shape == (2,) * 24
 
 
 def test_with_random_tables_keeps_the_given_matrix() -> None:
