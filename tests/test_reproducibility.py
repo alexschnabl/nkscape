@@ -16,7 +16,11 @@ import nkscape as nk
 
 class OneRandomTry(nk.Agent):
     def step(
-        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+        self,
+        config: NDArray[np.int8],
+        landscape: nk.Landscape,
+        rng: np.random.Generator,
+        population: nk.Population,
     ) -> ArrayLike:
         candidate: NDArray[np.int_] = landscape.neighbours(config)[rng.integers(landscape.n)]
         return candidate if landscape.fitness(candidate) > landscape.fitness(config) else config
@@ -104,22 +108,24 @@ def test_float32_tables_are_the_float64_draws_rounded() -> None:
         assert np.array_equal(a.astype(np.float32), b)
 
 
-def test_pinned_walk_for_seed_42() -> None:
+def test_pinned_walks_for_seed_42() -> None:
     land = nk.Landscape.random_k(10, 3, rng=42)
-    result = nk.run(land, OneRandomTry(), periods=12, rng=42)
-    assert ["".join(map(str, config)) for config in result.configs] == [
-        "0111010011",
-        "1111010011",
-        "1111110011",
-        "1111110011",
-        "1111110011",
-        "1111111011",
-        "1111101011",
-        "1111101011",
-        "1111101011",
-        "1111101011",
-        "1111101011",
-        "1111101011",
-        "1111101011",
+    result = nk.run(land, [OneRandomTry(), OneRandomTry()], periods=12, rng=42)
+    walks = [["".join(map(str, config)) for config in agent] for agent in result.configs]
+    assert walks[0] == [
+        "0011000111",
+        "0011000111",
+        "0011000111",
+        "0011100111",
+        "0011100111",
+        "0011100111",
+        "0011100111",
+        "0011100111",
+        "0111100111",
+        "0111100111",
+        "0111100111",
+        "0111100111",
+        "0111100111",
     ]
-    assert result.fitness[-1] == 0.785100747115253
+    assert walks[1] == ["0001100101"] * 11 + ["0000100101"] * 2
+    assert result.fitness[:, -1].tolist() == [0.5389108750872633, 0.6054437480998407]

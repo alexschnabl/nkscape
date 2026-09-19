@@ -16,11 +16,17 @@ FIRM = nk.Landscape(
         ],
     ),
 )
+Config = NDArray[np.int8]
+Rng = np.random.Generator
+
+
+def labels(configs: NDArray[np.int8]) -> list[str]:
+    return ["".join(map(str, config)) for config in configs]
 
 
 class BestNeighbour(nk.Agent):
     def step(
-        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
     ) -> ArrayLike:
         options = landscape.neighbour_fitness(config)
         j = int(np.argmax(options))
@@ -30,10 +36,36 @@ class BestNeighbour(nk.Agent):
 
 class OneRandomTry(nk.Agent):
     def step(
-        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
     ) -> ArrayLike:
         candidate: NDArray[np.int_] = landscape.neighbours(config)[rng.integers(landscape.n)]
         return candidate if landscape.fitness(candidate) > landscape.fitness(config) else config
+
+
+class FlipsDecisionZero(nk.Agent):
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        flipped: NDArray[np.int_] = landscape.neighbours(config)[0]
+        return flipped
+
+
+class CopiesAgentZero(nk.Agent):
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        first: NDArray[np.int8] = population.configs[0]
+        return first
+
+
+class CopiesTheBestIfBelowAverage(OneRandomTry):
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        if landscape.fitness(config) < population.fitness.mean():
+            best: NDArray[np.int8] = population.configs[population.fitness.argmax()]
+            return best
+        return super().step(config, landscape, rng, population)
 
 
 class CountsItsPeriods(OneRandomTry):
@@ -41,20 +73,28 @@ class CountsItsPeriods(OneRandomTry):
         self.periods_seen = 0
 
     def step(
-        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
     ) -> ArrayLike:
         self.periods_seen += 1
-        return super().step(config, landscape, rng)
+        return super().step(config, landscape, rng, population)
 
     def record(self) -> dict[str, float]:
-        return {"periods_seen": self.periods_seen, "twice": 2 * self.periods_seen}
+        return {"periods_seen": self.periods_seen}
 
 
 class EditsItsInput(nk.Agent):
     def step(
-        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
     ) -> ArrayLike:
         config[0] = 1 - config[0]
+        return config
+
+
+class EditsThePopulation(nk.Agent):
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        population.fitness[0] = 1.0
         return config
 
 
@@ -63,7 +103,7 @@ class Returns(nk.Agent):
         self.answer = answer
 
     def step(
-        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
     ) -> ArrayLike:
         return self.answer
 
@@ -77,111 +117,247 @@ class ChangesWhatItRecords(OneRandomTry):
         return {"a": 1.0} if self.calls < 3 else {"b": 1.0}
 
 
-def test_best_neighbour_on_the_firm_gets_stuck_on_the_lower_peak() -> None:
-    result = nk.run(FIRM, BestNeighbour(), periods=3, rng=1, start=[0, 1, 0])
-    assert result.configs.tolist() == [[0, 1, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]
-    assert result.fitness == pytest.approx([1.0 / 3, 2.1 / 3, 2.1 / 3, 2.1 / 3])
+class ImitateTheBestEveryFifthPeriod(nk.Interaction):
+    def __init__(self) -> None:
+        self.period = 0
+
+    def apply(
+        self,
+        population: nk.Population,
+        proposed: Config,
+        landscape: nk.Landscape,
+        rng: Rng,
+    ) -> ArrayLike:
+        self.period += 1
+        if self.period % 5:
+            return proposed
+        best = max(proposed, key=landscape.fitness)
+        return np.tile(best, (len(proposed), 1))
+
+
+class DrawsRandomNumbersButChangesNothing(nk.Interaction):
+    def apply(
+        self, population: nk.Population, proposed: Config, landscape: nk.Landscape, rng: Rng
+    ) -> ArrayLike:
+        rng.random(7)
+        return proposed
+
+
+class AppliesWith(nk.Interaction):
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+
+    def apply(
+        self, population: nk.Population, proposed: Config, landscape: nk.Landscape, rng: Rng
+    ) -> ArrayLike:
+        if self.answer == "too few rows":
+            return proposed[:-1]
+        if self.answer == "a two":
+            return proposed + 2
+        proposed[0, 0] = 1 - proposed[0, 0]
+        return proposed
+
+
+THREE_STARTS = [[0, 1, 0], [0, 1, 0], [1, 0, 0]]
+
+
+def three_agents() -> list[nk.Agent]:
+    return [BestNeighbour(), OneRandomTry(), OneRandomTry()]
+
+
+def test_three_agents_on_the_firm_without_interaction() -> None:
+    result = nk.run(FIRM, three_agents(), periods=6, rng=3, starts=THREE_STARTS)
+    assert labels(result.configs[0]) == ["010", "000", "000", "000", "000", "000", "000"]
+    assert labels(result.configs[1]) == ["010", "011", "001", "101", "101", "111", "111"]
+    assert labels(result.configs[2]) == ["100", "110", "110", "110", "110", "110", "110"]
+    assert result.fitness[0] == pytest.approx([1.0 / 3] + [2.1 / 3] * 6)
     assert result.extra == {}
 
 
+def test_an_interaction_rule_changes_what_is_adopted() -> None:
+    rule = ImitateTheBestEveryFifthPeriod()
+    result = nk.run(FIRM, three_agents(), periods=6, rng=3, starts=THREE_STARTS, interaction=rule)
+    assert labels(result.configs[0]) == ["010", "000", "000", "000", "000", "111", "111"]
+    assert labels(result.configs[1]) == ["010", "011", "001", "101", "101", "111", "111"]
+    assert labels(result.configs[2]) == ["100", "110", "110", "110", "110", "111", "111"]
+
+
+def test_result_shapes_put_the_agent_first() -> None:
+    land = nk.Landscape.random_k(10, 3, rng=1)
+    result = nk.run(land, [OneRandomTry() for _ in range(7)], periods=30, rng=7)
+    assert result.configs.shape == (7, 31, 10)
+    assert result.fitness.shape == (7, 31)
+    assert result.configs.dtype == np.int8
+    assert result.fitness.mean(axis=0).shape == (31,)
+
+
 def test_zero_periods_records_only_the_start() -> None:
-    result = nk.run(FIRM, BestNeighbour(), periods=0, rng=1, start=[0, 1, 0])
-    assert result.configs.tolist() == [[0, 1, 0]]
-    assert result.fitness.shape == (1,)
+    result = nk.run(FIRM, [BestNeighbour()], periods=0, rng=1, starts=[[0, 1, 0]])
+    assert labels(result.configs[0]) == ["010"]
+    assert result.fitness.shape == (1, 1)
 
 
-def test_negative_periods_are_rejected() -> None:
-    with pytest.raises(ValueError, match="must not be negative"):
-        nk.run(FIRM, BestNeighbour(), periods=-1, rng=1)
+def test_an_agent_walks_the_same_way_alone_as_in_a_crowd() -> None:
+    land = nk.Landscape.random_k(10, 3, rng=1)
+    alone = nk.run(land, [OneRandomTry()], periods=40, rng=5)
+    crowd = nk.run(land, [OneRandomTry() for _ in range(50)], periods=40, rng=5)
+    assert np.array_equal(alone.configs[0], crowd.configs[0])
+    assert not np.array_equal(crowd.configs[0], crowd.configs[1])
+
+
+def test_everybody_decides_on_last_periods_state() -> None:
+    result = nk.run(
+        FIRM, [FlipsDecisionZero(), CopiesAgentZero()], periods=4, rng=1, starts=[[0, 0, 0]] * 2
+    )
+    assert labels(result.configs[0]) == ["000", "100", "000", "100", "000"]
+    assert labels(result.configs[1]) == ["000", "000", "100", "000", "100"]
+
+
+def test_an_agent_can_decide_from_what_it_sees_of_the_others() -> None:
+    land = nk.Landscape.random_k(10, 3, rng=2)
+    result = nk.run(land, [CopiesTheBestIfBelowAverage() for _ in range(30)], periods=20, rng=3)
+    assert len(set(labels(result.configs[:, 0]))) > 20
+    assert len(set(labels(result.configs[:, -1]))) == 1
 
 
 def test_same_seed_gives_the_same_run() -> None:
     land = nk.Landscape.random_k(10, 3, rng=1)
-    a = nk.run(land, OneRandomTry(), periods=30, rng=7)
-    b = nk.run(land, OneRandomTry(), periods=30, rng=7)
-    c = nk.run(land, OneRandomTry(), periods=30, rng=8)
+    a = nk.run(land, [OneRandomTry() for _ in range(5)], periods=30, rng=7)
+    b = nk.run(land, [OneRandomTry() for _ in range(5)], periods=30, rng=7)
+    c = nk.run(land, [OneRandomTry() for _ in range(5)], periods=30, rng=8)
     assert np.array_equal(a.configs, b.configs)
     assert np.array_equal(a.fitness, b.fitness)
     assert not np.array_equal(a.configs, c.configs)
 
 
-def test_giving_the_start_does_not_change_the_agents_randomness() -> None:
+def test_giving_the_starts_does_not_change_the_agents_randomness() -> None:
     land = nk.Landscape.random_k(10, 3, rng=1)
-    drawn = nk.run(land, OneRandomTry(), periods=30, rng=7)
-    given = nk.run(land, OneRandomTry(), periods=30, rng=7, start=drawn.configs[0])
+    drawn = nk.run(land, [OneRandomTry() for _ in range(5)], periods=30, rng=7)
+    given = nk.run(
+        land, [OneRandomTry() for _ in range(5)], periods=30, rng=7, starts=drawn.configs[:, 0]
+    )
     assert np.array_equal(drawn.configs, given.configs)
 
 
-def test_a_generator_can_be_passed_and_continues() -> None:
+def test_the_interactions_randomness_does_not_disturb_the_agents() -> None:
+    land = nk.Landscape.random_k(10, 3, rng=1)
+    rule = DrawsRandomNumbersButChangesNothing()
+    without = nk.run(land, [OneRandomTry() for _ in range(5)], periods=30, rng=7)
+    with_rule = nk.run(land, [OneRandomTry() for _ in range(5)], 30, rng=7, interaction=rule)
+    assert np.array_equal(without.configs, with_rule.configs)
+
+
+def test_a_generator_can_be_passed() -> None:
     land = nk.Landscape.random_k(10, 3, rng=1)
     streams = np.random.default_rng(42).spawn(2)
-    a = nk.run(land, OneRandomTry(), periods=30, rng=streams[0])
-    b = nk.run(land, OneRandomTry(), periods=30, rng=streams[1])
+    a = nk.run(land, [OneRandomTry()], periods=30, rng=streams[0])
+    b = nk.run(land, [OneRandomTry()], periods=30, rng=streams[1])
     assert not np.array_equal(a.configs, b.configs)
 
     replay = np.random.default_rng(42).spawn(2)
-    assert np.array_equal(nk.run(land, OneRandomTry(), 30, replay[0]).configs, a.configs)
+    assert np.array_equal(nk.run(land, [OneRandomTry()], 30, replay[0]).configs, a.configs)
 
 
 def test_recorded_fitness_is_the_fitness_of_the_recorded_configuration() -> None:
     land = nk.Landscape.random_k(10, 3, rng=1)
-    result = nk.run(land, OneRandomTry(), periods=30, rng=7)
-    assert result.configs.shape == (31, 10)
-    for config, fitness in zip(result.configs, result.fitness, strict=True):
-        assert land.fitness(config) == fitness
+    result = nk.run(land, [OneRandomTry() for _ in range(3)], periods=20, rng=7)
+    for a in range(3):
+        for config, fitness in zip(result.configs[a], result.fitness[a], strict=True):
+            assert land.fitness(config) == fitness
 
 
-def test_fitness_never_falls_for_an_agent_that_only_moves_uphill() -> None:
-    land = nk.Landscape.random_k(10, 3, rng=1)
-    result = nk.run(land, OneRandomTry(), periods=60, rng=9)
-    assert (np.diff(result.fitness) >= 0).all()
+def test_agents_keep_their_memory_and_can_record_it() -> None:
+    agents = [CountsItsPeriods(), CountsItsPeriods()]
+    result = nk.run(FIRM, agents, periods=5, rng=1)
+    assert agents[0].periods_seen == 5
+    assert result.extra["periods_seen"].tolist() == [[0, 1, 2, 3, 4, 5]] * 2
 
 
-def test_an_agent_keeps_its_memory_and_can_record_it() -> None:
-    agent = CountsItsPeriods()
-    result = nk.run(FIRM, agent, periods=5, rng=1)
-    assert agent.periods_seen == 5
-    assert result.extra["periods_seen"].tolist() == [0, 1, 2, 3, 4, 5]
-    assert result.extra["twice"].tolist() == [0, 2, 4, 6, 8, 10]
+def test_an_agent_that_does_not_record_a_name_gets_nan() -> None:
+    result = nk.run(FIRM, [CountsItsPeriods(), OneRandomTry()], periods=3, rng=1)
+    assert result.extra["periods_seen"][0].tolist() == [0, 1, 2, 3]
+    assert np.isnan(result.extra["periods_seen"][1]).all()
 
 
 def test_changing_the_recorded_names_is_rejected() -> None:
-    with pytest.raises(ValueError, match=r"same names in every period.*\['a'\].*\['b'\]"):
-        nk.run(FIRM, ChangesWhatItRecords(), periods=5, rng=1)
+    with pytest.raises(ValueError, match=r"same names.*agent 0.*\['a'\].*\['b'\]"):
+        nk.run(FIRM, [ChangesWhatItRecords()], periods=5, rng=1)
 
 
-def test_an_agent_that_edits_its_input_is_stopped() -> None:
+def test_the_same_agent_object_twice_is_rejected() -> None:
+    with pytest.raises(ValueError, match="its own object"):
+        nk.run(FIRM, [OneRandomTry()] * 3, periods=2, rng=1)
+
+
+def test_a_bare_agent_instead_of_a_list_is_rejected_clearly() -> None:
+    with pytest.raises(TypeError, match=r"pass \[agent\]"):
+        nk.run(FIRM, OneRandomTry(), periods=2, rng=1)  # type: ignore[arg-type]
+
+
+def test_no_agents_is_rejected() -> None:
+    with pytest.raises(ValueError, match="at least one agent"):
+        nk.run(FIRM, [], periods=2, rng=1)
+
+
+def test_negative_periods_are_rejected() -> None:
+    with pytest.raises(ValueError, match="must not be negative"):
+        nk.run(FIRM, [BestNeighbour()], periods=-1, rng=1)
+
+
+def test_starts_must_have_one_row_per_agent() -> None:
+    with pytest.raises(ValueError, match="expected 3 configurations of 3 values"):
+        nk.run(FIRM, three_agents(), periods=2, rng=1, starts=[[0, 1, 0], [0, 1, 0]])
+
+
+@pytest.mark.parametrize("agent", [EditsItsInput(), EditsThePopulation()])
+def test_an_agent_that_edits_what_it_is_shown_is_stopped(agent: nk.Agent) -> None:
     with pytest.raises(ValueError, match="read-only"):
-        nk.run(FIRM, EditsItsInput(), periods=2, rng=1)
+        nk.run(FIRM, [agent], periods=2, rng=1)
 
 
 @pytest.mark.parametrize("answer", [[1, 0], [1, 2, 0], [[1, 0, 1]]])
 def test_an_agent_that_returns_no_valid_configuration_is_stopped(answer: ArrayLike) -> None:
     with pytest.raises(ValueError, match="configuration"):
-        nk.run(FIRM, Returns(answer), periods=2, rng=1)
+        nk.run(FIRM, [Returns(answer)], periods=2, rng=1)
 
 
-def test_agent_cannot_be_created_without_a_step() -> None:
-    class Forgot(nk.Agent):
+@pytest.mark.parametrize(
+    ("answer", "message"),
+    [
+        ("too few rows", "expected 3 configurations"),
+        ("a two", "0 and 1"),
+        ("edits its input", "read-only"),
+    ],
+)
+def test_an_interaction_that_misbehaves_is_stopped(answer: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        nk.run(FIRM, three_agents(), periods=2, rng=1, interaction=AppliesWith(answer))
+
+
+def test_agent_and_interaction_cannot_be_created_without_their_method() -> None:
+    class ForgotStep(nk.Agent):
+        pass
+
+    class ForgotApply(nk.Interaction):
         pass
 
     with pytest.raises(TypeError, match="step"):
-        nk.Agent()  # type: ignore[abstract]
-    with pytest.raises(TypeError, match="step"):
-        Forgot()  # type: ignore[abstract]
+        ForgotStep()  # type: ignore[abstract]
+    with pytest.raises(TypeError, match="apply"):
+        ForgotApply()  # type: ignore[abstract]
 
 
 def test_results_are_read_only() -> None:
-    result = nk.run(FIRM, CountsItsPeriods(), periods=2, rng=1)
-    for array in (result.configs, result.fitness, result.extra["twice"]):
+    result = nk.run(FIRM, [CountsItsPeriods()], periods=2, rng=1)
+    for array in (result.configs, result.fitness, result.extra["periods_seen"]):
         assert not array.flags.writeable
 
 
 def test_the_cube_is_built_up_to_n_20_by_default() -> None:
     small = nk.Landscape.next_k(20, 2, rng=1)
     large = nk.Landscape.next_k(21, 2, rng=1)
-    nk.run(small, OneRandomTry(), periods=1, rng=1)
-    nk.run(large, OneRandomTry(), periods=1, rng=1)
+    nk.run(small, [OneRandomTry()], periods=1, rng=1)
+    nk.run(large, [OneRandomTry()], periods=1, rng=1)
     assert small._fitness_cube is not None
     assert large._fitness_cube is None
 
@@ -189,8 +365,8 @@ def test_the_cube_is_built_up_to_n_20_by_default() -> None:
 def test_build_cube_can_be_forced_or_forbidden() -> None:
     small = nk.Landscape.next_k(8, 2, rng=1)
     large = nk.Landscape.next_k(21, 2, rng=1)
-    nk.run(small, OneRandomTry(), periods=1, rng=1, build_cube=False)
-    nk.run(large, OneRandomTry(), periods=1, rng=1, build_cube=True)
+    nk.run(small, [OneRandomTry()], periods=1, rng=1, build_cube=False)
+    nk.run(large, [OneRandomTry()], periods=1, rng=1, build_cube=True)
     assert small._fitness_cube is None
     assert large._fitness_cube is not None
 
@@ -198,18 +374,17 @@ def test_build_cube_can_be_forced_or_forbidden() -> None:
 def test_forcing_the_cube_above_the_enumeration_limit_is_refused() -> None:
     land = nk.Landscape.next_k(25, 2, rng=1)
     with pytest.raises(ValueError, match="above the limit of 24"):
-        nk.run(land, OneRandomTry(), periods=1, rng=1, build_cube=True)
+        nk.run(land, [OneRandomTry()], periods=1, rng=1, build_cube=True)
 
 
 def test_a_run_gives_the_same_walk_with_and_without_the_cube() -> None:
-    with_cube = nk.run(nk.Landscape.random_k(10, 3, rng=1), OneRandomTry(), 40, rng=5)
-    without = nk.run(
-        nk.Landscape.random_k(10, 3, rng=1), OneRandomTry(), 40, rng=5, build_cube=False
-    )
+    agents = [OneRandomTry() for _ in range(4)]
+    with_cube = nk.run(nk.Landscape.random_k(10, 3, rng=1), agents, 40, rng=5)
+    without = nk.run(nk.Landscape.random_k(10, 3, rng=1), agents, 40, rng=5, build_cube=False)
     assert np.array_equal(with_cube.configs, without.configs)
     assert np.array_equal(with_cube.fitness, without.fitness)
 
 
 def test_a_float32_landscape_records_float32_fitness() -> None:
     land = nk.Landscape.random_k(10, 3, rng=1, dtype=np.float32)
-    assert nk.run(land, OneRandomTry(), periods=5, rng=1).fitness.dtype == np.float32
+    assert nk.run(land, [OneRandomTry()], periods=5, rng=1).fitness.dtype == np.float32

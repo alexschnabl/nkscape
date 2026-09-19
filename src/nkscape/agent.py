@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from nkscape.landscape import Landscape
+from nkscape.population import Population
 
 
 class Agent(ABC):
@@ -19,7 +20,11 @@ class Agent(ABC):
 
     @abstractmethod
     def step(
-        self, config: NDArray[np.int_], landscape: Landscape, rng: np.random.Generator
+        self,
+        config: NDArray[np.int8],
+        landscape: Landscape,
+        rng: np.random.Generator,
+        population: Population,
     ) -> ArrayLike:
         """
         The configuration the agent wants to be at in the next period.
@@ -34,6 +39,8 @@ class Agent(ABC):
             `is_peak`.
         rng
             The agent's own random stream.
+        population
+            Where all agents were at the end of the last period, and what that was worth.
         """
 
     def record(self) -> dict[str, float]:

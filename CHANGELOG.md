@@ -26,11 +26,16 @@ All notable changes to this project are documented here. The format follows
   length 2 (`cube[1, 0, 1]` is the fitness of 101), built by broadcasting, computed once,
   read-only, identical bit for bit to `fitness(config)`. Refused above N = 24.
 - `nk.Agent`: base class for anything that walks a landscape. Subclass it and write
-  `step(config, landscape, rng)`; optionally `record()` to log extra values per period.
-- `nk.run(landscape, agent, periods, rng, start=None, build_cube=None)` lets one agent walk and
-  returns an `nk.RunResult` with `configs`, `fitness` and `extra` for every period. The seed is
-  split into a stream for the start and one for the agent. The fitness cube is built first for
-  N up to 20; `build_cube=True/False` overrides that.
+  `step(config, landscape, rng, population)`; optionally `record()` to log extra values per
+  period.
+- `nk.run(landscape, agents, periods, rng, starts=None, interaction=None, build_cube=None)` runs
+  a population in lockstep: every period all agents step, each seeing the same read-only
+  `nk.Population` snapshot (everybody's configuration and fitness at the end of the last period),
+  then an optional `nk.Interaction` rule decides what is really adopted. Returns an
+  `nk.RunResult` with `configs[agent, period]`, `fitness[agent, period]` and `extra`.
+  Every agent has its own random streams, so without an interaction rule it walks the same way
+  alone as in a crowd. The fitness cube is built first for N up to 20; `build_cube` overrides
+  that.
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
   and then rounded, so a seed gives the same landscape in either size. Default stays float64.
