@@ -90,6 +90,25 @@ def test_fitness_cube_equals_fitness_bit_for_bit(k: int) -> None:
         assert cube[config] == land.fitness(config)
 
 
+@pytest.mark.parametrize("k", [0, 5, 19])
+def test_fitness_cube_equals_fitness_bit_for_bit_for_larger_n(k: int) -> None:
+    # NumPy's own sum adds in pairs once a row is long enough, which differs in the last digit;
+    # N = 20 is long enough to catch any summation that is not strictly left to right.
+    looked_up = nk.Landscape.random_k(20, k, rng=24)
+    cube = nk.Landscape.random_k(20, k, rng=24).fitness_cube()
+    gen = np.random.default_rng(25)
+    for _ in range(300):
+        config = looked_up.random_configuration(gen)
+        assert cube[tuple(config)] == looked_up.fitness(config)
+
+
+@pytest.mark.parametrize("k", [0, 3, 9])
+def test_count_peaks_is_the_number_of_peaks(k: int) -> None:
+    land = nk.Landscape.random_k(10, k, rng=26)
+    assert land.count_peaks() == len(land.peaks())
+    assert type(land.count_peaks()) is int
+
+
 @pytest.mark.parametrize("k", [0, 2, 7])
 def test_peaks_are_exactly_the_configurations_no_flip_improves(k: int) -> None:
     land = nk.Landscape.random_k(8, k, rng=22)

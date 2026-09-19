@@ -51,9 +51,11 @@ class InteractionMatrix:
                 f"decision); it is not 1 in rows {missing}"
             )
 
-        self.grid: NDArray[np.int_] = grid.astype(int)
-        self.grid.setflags(write=False)
+        self.grid: NDArray[np.int_] = _locked(grid.astype(int))
         self.n: int = len(grid)
+        # The grid cannot change, so its rows and columns are read once and kept.
+        self._depends_on = tuple(_locked(np.flatnonzero(row)) for row in self.grid)
+        self._affects = tuple(_locked(np.flatnonzero(column)) for column in self.grid.T)
 
     @classmethod
     def next_k(cls, n: int, k: int) -> Self:
@@ -129,17 +131,25 @@ class InteractionMatrix:
         """
         Decisions that contribution i depends on (row i), in ascending order.
 
-        Always includes i itself.
+        Always includes i itself. The returned row is read-only.
         """
-        return np.flatnonzero(self.grid[i])
+        return self._depends_on[i]
 
     def affects(self, j: int) -> NDArray[np.intp]:
         """
         Contributions that change when decision j is flipped (column j), in ascending order.
 
-        Always includes j itself.
+        Always includes j itself. The returned row is read-only.
         """
-        return np.flatnonzero(self.grid[:, j])
+        return self._affects[j]
+
+
+def _locked[T: np.generic](array: NDArray[T]) -> NDArray[T]:
+    """
+    Make an array read-only and hand it back.
+    """
+    array.setflags(write=False)
+    return array
 
 
 def _check_n_k(n: int, k: int) -> None:

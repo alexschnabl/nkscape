@@ -244,6 +244,16 @@ def test_random_k_rejects_impossible_n_and_k(n: int, k: int) -> None:
         nk.InteractionMatrix.random_k(n, k, rng=1)
 
 
+def test_depends_on_and_affects_are_read_once_and_read_only() -> None:
+    m = nk.InteractionMatrix(UNEVEN)
+    assert m.depends_on(3) is m.depends_on(3)
+    assert m.affects(1) is m.affects(1)
+    with pytest.raises(ValueError, match="read-only"):
+        m.depends_on(3)[0] = 0
+    with pytest.raises(ValueError, match="read-only"):
+        m.affects(1)[0] = 0
+
+
 def test_index_out_of_range_is_rejected() -> None:
     m = nk.InteractionMatrix(FIRM)
     with pytest.raises(IndexError):

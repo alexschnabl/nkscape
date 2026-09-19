@@ -133,10 +133,8 @@ class Landscape:
         row = check_configuration(config, self.n)
         if self._fitness_cube is not None:
             return float(self._fitness_cube[tuple(row)])
-        total = 0.0
-        for value in self.tables.contributions(row):
-            total += value
-        return float(total / self.n)
+        # cumsum adds strictly left to right, the same order in which the cube is built
+        return float(np.cumsum(self.tables.contributions(row))[-1] / self.n)
 
     def neighbours(self, config: ArrayLike) -> NDArray[np.int_]:
         """
@@ -200,23 +198,29 @@ class Landscape:
             self._fitness_cube = cube
         return self._fitness_cube
 
+    def _peak_mask(self) -> NDArray[np.bool_]:
+        """
+        True at the position of every local optimum.
+        """
+        cube = self.fitness_cube()
+        is_peak = np.ones(cube.shape, dtype=bool)
+        for j in range(self.n):
+            is_peak &= cube >= np.flip(cube, axis=j)
+        return is_peak
+
     def peaks(self) -> NDArray[np.intp]:
         """
         The local optima: configurations that no single-decision change improves.
 
         One row per peak. A configuration whose best neighbour is exactly as good counts as a peak.
         """
-        cube = self.fitness_cube()
-        is_peak = np.ones(cube.shape, dtype=bool)
-        for j in range(self.n):
-            is_peak &= cube >= np.flip(cube, axis=j)
-        return np.argwhere(is_peak)
+        return np.argwhere(self._peak_mask())
 
     def count_peaks(self) -> int:
         """
         The number of local optima.
         """
-        return len(self.peaks())
+        return int(self._peak_mask().sum())
 
     def global_max(self) -> float:
         """
