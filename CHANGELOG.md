@@ -25,6 +25,10 @@ All notable changes to this project are documented here. The format follows
 - `Landscape.fitness_cube()`: the fitness of all 2^N configurations as an array with N axes of
   length 2 (`cube[1, 0, 1]` is the fitness of 101), built by broadcasting, computed once,
   read-only, identical bit for bit to `fitness(config)`. Refused above N = 24.
+- Look-around helpers on `Landscape`: `neighbours(config)`, `neighbour_fitness(config)`,
+  `is_peak(config)` and `random_configuration(rng)`. `fitness` and `neighbour_fitness` read from
+  the fitness cube when it has been built and look the values up otherwise; both give identical
+  results, and the helpers never build the cube themselves.
 - `nk.set_enumeration_limit(n)` and `nk.get_enumeration_limit()`: the largest N for which every
   configuration may be looked at (default 24). The refusal states the memory needed and how to
   raise the limit.

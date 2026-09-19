@@ -172,6 +172,107 @@ def test_an_enumeration_limit_below_1_is_rejected() -> None:
     assert nk.get_enumeration_limit() == 24
 
 
+def test_neighbours_of_the_firm() -> None:
+    land = nk.Landscape(FIRM, FIRM_TABLES)
+    assert np.array_equal(land.neighbours([0, 1, 0]), [[1, 1, 0], [0, 0, 0], [0, 1, 1]])
+
+
+def test_row_j_of_neighbours_differs_in_exactly_decision_j() -> None:
+    land = nk.Landscape.random_k(12, 3, rng=31)
+    config = land.random_configuration(rng=32)
+    neighbours = land.neighbours(config)
+    assert neighbours.shape == (12, 12)
+    for j in range(land.n):
+        assert np.array_equal(np.flatnonzero(neighbours[j] != config), [j])
+
+
+def test_neighbour_fitness_of_the_firm() -> None:
+    land = nk.Landscape(FIRM, FIRM_TABLES)
+    assert land.neighbour_fitness([0, 1, 0]) == pytest.approx([1.3 / 3, 2.1 / 3, 1.1 / 3])
+
+
+@pytest.mark.parametrize("k", [0, 2, 7])
+def test_helpers_give_identical_results_with_and_without_the_cube(k: int) -> None:
+    looked_up = nk.Landscape.random_k(8, k, rng=33)
+    from_cube = nk.Landscape.random_k(8, k, rng=33)
+    from_cube.fitness_cube()
+    for config in product([0, 1], repeat=8):
+        assert looked_up.fitness(config) == from_cube.fitness(config)
+        assert np.array_equal(
+            looked_up.neighbour_fitness(config), from_cube.neighbour_fitness(config)
+        )
+        assert looked_up.is_peak(config) == from_cube.is_peak(config)
+
+
+def test_the_helpers_never_build_the_cube() -> None:
+    land = nk.Landscape.random_k(8, 2, rng=34)
+    config = land.random_configuration(rng=35)
+    land.fitness(config)
+    land.neighbours(config)
+    land.neighbour_fitness(config)
+    land.is_peak(config)
+    assert land._fitness_cube is None
+
+
+@pytest.mark.parametrize("k", [0, 2, 7])
+def test_is_peak_agrees_with_peaks(k: int) -> None:
+    land = nk.Landscape.random_k(8, k, rng=36)
+    peaks = {tuple(int(d) for d in row) for row in land.peaks()}
+    for config in product([0, 1], repeat=8):
+        assert land.is_peak(config) == (config in peaks)
+
+
+def test_is_peak_of_the_firm() -> None:
+    land = nk.Landscape(FIRM, FIRM_TABLES)
+    assert land.is_peak([0, 0, 0])
+    assert land.is_peak([1, 1, 1])
+    assert not land.is_peak([0, 1, 0])
+    assert type(land.is_peak([0, 0, 0])) is bool
+
+
+def test_the_helpers_work_above_the_enumeration_limit() -> None:
+    land = nk.Landscape.next_k(40, 2, rng=37)
+    config = land.random_configuration(rng=38)
+    assert land.neighbours(config).shape == (40, 40)
+    assert land.neighbour_fitness(config).shape == (40,)
+    assert land.is_peak(config) in (True, False)
+
+
+def test_neighbours_can_be_changed_without_harming_the_landscape() -> None:
+    land = nk.Landscape(FIRM, FIRM_TABLES)
+    neighbours = land.neighbours([0, 1, 0])
+    neighbours[0, 0] = 0
+    assert np.array_equal(land.neighbours([0, 1, 0]), [[1, 1, 0], [0, 0, 0], [0, 1, 1]])
+
+
+def test_random_configuration_is_n_zeros_and_ones() -> None:
+    land = nk.Landscape.next_k(12, 2, rng=39)
+    config = land.random_configuration(rng=40)
+    assert config.shape == (12,)
+    assert set(config.tolist()) <= {0, 1}
+    assert land.fitness(config) >= 0
+
+
+def test_random_configuration_is_seeded() -> None:
+    land = nk.Landscape.next_k(12, 2, rng=39)
+    assert np.array_equal(land.random_configuration(rng=1), land.random_configuration(rng=1))
+    assert not np.array_equal(land.random_configuration(rng=1), land.random_configuration(rng=2))
+
+    gen = np.random.default_rng(3)
+    a, b = land.random_configuration(gen), land.random_configuration(gen)
+    assert not np.array_equal(a, b)
+    replay = np.random.default_rng(3)
+    assert np.array_equal(land.random_configuration(replay), a)
+    assert np.array_equal(land.random_configuration(replay), b)
+
+
+def test_random_configurations_are_about_half_ones() -> None:
+    land = nk.Landscape.next_k(20, 0, rng=39)
+    gen = np.random.default_rng(4)
+    share = np.mean([land.random_configuration(gen) for _ in range(2000)])
+    assert share == pytest.approx(0.5, abs=0.02)
+
+
 def test_with_random_tables_keeps_the_given_matrix() -> None:
     land = nk.Landscape.with_random_tables(FIRM, rng=42)
     assert land.matrix is FIRM

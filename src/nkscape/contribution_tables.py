@@ -8,6 +8,7 @@ from typing import Self
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from nkscape.configuration import check_configuration
 from nkscape.interaction_matrix import InteractionMatrix
 
 
@@ -89,15 +90,7 @@ class ContributionTables:
         ValueError
             If the configuration does not have N values or contains anything but 0 and 1.
         """
-        row = np.asarray(config)
-        if row.shape != (self.n,):
-            raise ValueError(
-                f"configuration must have {self.n} values (one per decision), got shape {row.shape}"
-            )
-        if not np.isin(row, [0, 1]).all():
-            raise ValueError("configuration may only contain 0 and 1")
-        row = row.astype(int)
-
+        row = check_configuration(config, self.n)
         values = []
         for i in range(self.n):
             answers = tuple(row[self.matrix.depends_on(i)])

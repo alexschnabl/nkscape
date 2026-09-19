@@ -7,6 +7,7 @@ from typing import Self
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from nkscape.configuration import check_configuration
 from nkscape.contribution_tables import ContributionTables
 from nkscape.interaction_matrix import InteractionMatrix
 
@@ -69,6 +70,8 @@ class Landscape:
         self.tables: ContributionTables = tables
         self.n: int = matrix.n
         self._fitness_cube: NDArray[np.float64] | None = None
+        self._flips: NDArray[np.int_] = np.eye(self.n, dtype=int)
+        self._flips.setflags(write=False)
 
     @classmethod
     def with_random_tables(cls, matrix: InteractionMatrix, rng: int | np.random.Generator) -> Self:
@@ -124,11 +127,49 @@ class Landscape:
     def fitness(self, config: ArrayLike) -> float:
         """
         The fitness of one configuration: the average of its contributions.
+
+        Read from the fitness cube if that has been built, otherwise looked up.
         """
+        row = check_configuration(config, self.n)
+        if self._fitness_cube is not None:
+            return float(self._fitness_cube[tuple(row)])
         total = 0.0
-        for value in self.contributions(config):
+        for value in self.tables.contributions(row):
             total += value
         return float(total / self.n)
+
+    def neighbours(self, config: ArrayLike) -> NDArray[np.int_]:
+        """
+        The N configurations that differ from `config` in one decision.
+
+        Row j is `config` with decision j flipped.
+        """
+        row = check_configuration(config, self.n)
+        return row ^ self._flips
+
+    def neighbour_fitness(self, config: ArrayLike) -> NDArray[np.float64]:
+        """
+        The fitness of every neighbour: entry j is the fitness after flipping decision j.
+
+        Read from the fitness cube if that has been built, otherwise looked up.
+        """
+        neighbours = self.neighbours(config)
+        if self._fitness_cube is not None:
+            from_cube: NDArray[np.float64] = self._fitness_cube[tuple(neighbours.T)]
+            return from_cube
+        return np.array([self.fitness(row) for row in neighbours])
+
+    def is_peak(self, config: ArrayLike) -> bool:
+        """
+        Whether no single-decision change improves fitness (ties count as a peak).
+        """
+        return bool((self.neighbour_fitness(config) <= self.fitness(config)).all())
+
+    def random_configuration(self, rng: int | np.random.Generator) -> NDArray[np.int_]:
+        """
+        A configuration drawn uniformly at random.
+        """
+        return np.random.default_rng(rng).integers(2, size=self.n)
 
     def fitness_cube(self) -> NDArray[np.float64]:
         """
