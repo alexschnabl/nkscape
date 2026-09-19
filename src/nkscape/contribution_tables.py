@@ -2,7 +2,7 @@
 The fitness-contribution tables of an NK landscape.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable
 from typing import Self
 
 import numpy as np
@@ -27,7 +27,8 @@ class ContributionTables:
     matrix
         The interaction matrix the tables belong to.
     tables
-        One table per decision, each shaped to fit its row of the matrix.
+        One table per decision, each shaped to fit its row of the matrix. They are taken one at
+        a time, so a generator that makes each table only when asked keeps memory low.
     dtype
         How the numbers are stored: `float64` (default, 8 bytes each) or `float32` (4 bytes
         each, about 7 significant digits). Everything computed from the tables - contributions,
@@ -45,18 +46,17 @@ class ContributionTables:
     def __init__(
         self,
         matrix: InteractionMatrix,
-        tables: Sequence[ArrayLike],
+        tables: Iterable[ArrayLike],
         dtype: DTypeLike = np.float64,
     ) -> None:
         self.dtype = np.dtype(dtype)
         if self.dtype not in (np.dtype(np.float64), np.dtype(np.float32)):
             raise ValueError(f"dtype must be float64 or float32, got {self.dtype}")
 
-        if len(tables) != matrix.n:
-            raise ValueError(f"expected {matrix.n} tables (one per decision), got {len(tables)}")
-
         checked = []
         for i, table in enumerate(tables):
+            if i == matrix.n:
+                raise ValueError(f"expected {matrix.n} tables (one per decision), got more")
             try:
                 array = np.array(table, dtype=self.dtype)
             except ValueError:
@@ -71,6 +71,9 @@ class ContributionTables:
 
             array.setflags(write=False)
             checked.append(array)
+
+        if len(checked) != matrix.n:
+            raise ValueError(f"expected {matrix.n} tables (one per decision), got {len(checked)}")
 
         self.matrix: InteractionMatrix = matrix
         self.tables: tuple[NDArray[np.floating], ...] = tuple(checked)
@@ -100,7 +103,9 @@ class ContributionTables:
         """
         rng = np.random.default_rng(rng)
         shapes = [(2,) * len(matrix.depends_on(i)) for i in range(matrix.n)]
-        return cls(matrix, [rng.random(shape).astype(dtype) for shape in shapes], dtype)
+        # a generator: each table is drawn only when __init__ asks for it, and its float64
+        # draw is released as soon as the stored copy exists
+        return cls(matrix, (rng.random(shape) for shape in shapes), dtype)
 
     def contributions(self, config: ArrayLike) -> NDArray[np.floating]:
         """

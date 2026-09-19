@@ -28,6 +28,9 @@ All notable changes to this project are documented here. The format follows
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
   and then rounded, so a seed gives the same landscape in either size. Default stays float64.
+- `ContributionTables` takes its tables one at a time (any iterable, including a generator), and
+  `ContributionTables.random` draws each table only when it is stored. Creating a landscape with
+  large tables peaks at about the size of the tables instead of twice that.
 - Reproducibility guards (`tests/test_reproducibility.py`): pinned results for fixed seeds, and
   the rule that entry p of table i is a fixed draw of the tables stream (reachable by jumping
   ahead), which any future backend has to reproduce.

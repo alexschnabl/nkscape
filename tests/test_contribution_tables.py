@@ -1,3 +1,4 @@
+import tracemalloc
 from itertools import product
 
 import numpy as np
@@ -37,6 +38,35 @@ def test_hand_made_tables_are_accepted() -> None:
 def test_wrong_number_of_tables_is_rejected() -> None:
     with pytest.raises(ValueError, match="expected 3 tables"):
         nk.ContributionTables(FIRM, FIRM_TABLES[:2])
+
+
+def test_too_many_tables_are_rejected() -> None:
+    with pytest.raises(ValueError, match=r"expected 3 tables.*got more"):
+        nk.ContributionTables(FIRM, [*FIRM_TABLES, FIRM_TABLES[0]])
+
+
+def test_tables_can_come_from_a_generator() -> None:
+    t = nk.ContributionTables(FIRM, (table for table in FIRM_TABLES))
+    assert np.array_equal(t.contributions([1, 0, 1]), [0.2, 0.2, 0.9])
+
+    with pytest.raises(ValueError, match=r"expected 3 tables.*got 2"):
+        nk.ContributionTables(FIRM, (table for table in FIRM_TABLES[:2]))
+
+
+@pytest.mark.parametrize("dtype", [np.float64, np.float32])
+def test_creating_random_tables_needs_little_more_memory_than_the_tables(
+    dtype: DTypeLike,
+) -> None:
+    # K = N - 1: the tables are large. Each float64 draw must be released once it is stored,
+    # so the peak stays near the size of the stored tables plus one table in transit.
+    m = nk.InteractionMatrix.next_k(16, 15)
+    tracemalloc.start()
+    t = nk.ContributionTables.random(m, rng=1, dtype=dtype)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    stored = sum(table.nbytes for table in t.tables)
+    one_draw = 2**16 * 8
+    assert peak < stored + 2 * one_draw + 100_000
 
 
 def test_table_with_wrong_shape_is_rejected() -> None:
