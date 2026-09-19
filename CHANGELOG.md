@@ -25,6 +25,12 @@ All notable changes to this project are documented here. The format follows
 - `Landscape.fitness_cube()`: the fitness of all 2^N configurations as an array with N axes of
   length 2 (`cube[1, 0, 1]` is the fitness of 101), built by broadcasting, computed once,
   read-only, identical bit for bit to `fitness(config)`. Refused above N = 24.
+- `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
+  fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
+  and then rounded, so a seed gives the same landscape in either size. Default stays float64.
+- Reproducibility guards (`tests/test_reproducibility.py`): pinned results for fixed seeds, and
+  the rule that entry p of table i is a fixed draw of the tables stream (reachable by jumping
+  ahead), which any future backend has to reproduce.
 - Look-around helpers on `Landscape`: `neighbours(config)`, `neighbour_fitness(config)`,
   `is_peak(config)` and `random_configuration(rng)`. `fitness` and `neighbour_fitness` read from
   the fitness cube when it has been built and look the values up otherwise; both give identical
