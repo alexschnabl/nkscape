@@ -11,8 +11,8 @@ from nkscape.configuration import check_configuration
 from nkscape.contribution_tables import ContributionTables
 from nkscape.interaction_matrix import InteractionMatrix
 
-# Looking at every configuration holds 2^N fitness values in memory: about 16 bytes per
-# configuration while the cube is built, 8 bytes afterwards. N = 24 stays below 0.3 GB.
+# Looking at every configuration holds 2^N fitness values in memory: 8 bytes per configuration
+# for the cube, about 10 while the peaks are searched. N = 24 stays below 0.2 GB.
 DEFAULT_ENUMERATION_LIMIT = 24
 
 _enumeration_limit = DEFAULT_ENUMERATION_LIMIT
@@ -29,9 +29,9 @@ def set_enumeration_limit(n: int) -> None:
     """
     Change the largest N for which every configuration of a landscape may be looked at.
 
-    The limit protects against running out of memory; it never changes a result. Building the
-    fitness cube needs about 16 bytes per configuration: 0.3 GB for N = 24, 4.3 GB for N = 28,
-    17 GB for N = 30, doubling with every further decision.
+    The limit protects against running out of memory; it never changes a result. The fitness
+    cube needs 8 bytes per configuration, and searching it for peaks about 10: 0.17 GB for
+    N = 24, 2.7 GB for N = 28, 10.7 GB for N = 30, doubling with every further decision.
 
     Parameters
     ----------
@@ -188,14 +188,14 @@ class Landscape:
             if self.n > _enumeration_limit:
                 raise ValueError(
                     f"looking at every configuration needs 2^N fitness values; N = {self.n} "
-                    f"is above the limit of {_enumeration_limit}. Building the cube for "
-                    f"N = {self.n} takes about {16 * 2**self.n / 1e9:.1f} GB of memory; if this "
-                    f"machine has that, raise the limit with nk.set_enumeration_limit({self.n})"
+                    f"is above the limit of {_enumeration_limit}. For N = {self.n} that takes "
+                    f"about {10 * 2**self.n / 1e9:.1f} GB of memory; if this machine has that, "
+                    f"raise the limit with nk.set_enumeration_limit({self.n})"
                 )
-            total = np.zeros((2,) * self.n)
+            cube = np.zeros((2,) * self.n)
             for i in range(self.n):
-                total += self.tables.contribution_cube(i)
-            cube = total / self.n
+                cube += self.tables.contribution_cube(i)
+            cube /= self.n
             cube.setflags(write=False)
             self._fitness_cube = cube
         return self._fitness_cube

@@ -162,7 +162,7 @@ def test_the_enumeration_limit_can_be_changed() -> None:
 
 def test_the_refusal_says_how_much_memory_and_how_to_raise_the_limit() -> None:
     land = nk.Landscape.next_k(30, 0, rng=1)
-    with pytest.raises(ValueError, match=r"about 17\.2 GB.*nk\.set_enumeration_limit\(30\)"):
+    with pytest.raises(ValueError, match=r"about 10\.7 GB.*nk\.set_enumeration_limit\(30\)"):
         land.fitness_cube()
 
 
