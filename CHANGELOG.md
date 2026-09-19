@@ -17,6 +17,11 @@ All notable changes to this project are documented here. The format follows
 - `InteractionMatrix.next_k(n, k)` and `InteractionMatrix.random_k(n, k, rng)`: build a matrix in
   which each contribution depends on the next k decisions, or on k randomly chosen others. `rng`
   is a seed or a NumPy generator and is required.
+- `Landscape`: an interaction matrix together with its contribution tables. `fitness(config)` is
+  the average of `contributions(config)`. Built from existing parts, or with
+  `Landscape.random_k(n, k, rng)`, `Landscape.next_k(n, k, rng)` and
+  `Landscape.with_random_tables(matrix, rng)`. `random_k` draws the matrix and the tables from
+  separate streams spawned from `rng`.
 - `ContributionTables`: one fitness-contribution table per decision, shaped to fit its row of the
   matrix (axes follow `depends_on`). Built from hand-made tables or with
   `ContributionTables.random(matrix, rng)`; validated and read-only.
