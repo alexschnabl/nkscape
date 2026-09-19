@@ -14,14 +14,17 @@ from nkscape.landscape import Landscape
 @dataclass(frozen=True)
 class Population:
     """
-    Where every agent was at the end of the last period, and what that was worth.
+    The state of the world as the agents and the population rules see it.
 
-    Row a belongs to agent a. Both arrays are read-only. Every agent and the population rule
-    get the same snapshot, so nobody sees a move made in the current period.
+    `configs` and `fitness` say where every agent stands and what that is worth; row a belongs
+    to agent a, and both arrays are read-only. `period` is the period being played, 1 for the
+    first. In `before_period`, `step` and `decide` the arrays show the end of the last period,
+    so nobody sees a move made in the current one; in `after_period` they show its outcome.
     """
 
     configs: NDArray[np.int8]
     fitness: NDArray[np.floating]
+    period: int
 
 
 class PopulationRule(ABC):
@@ -50,7 +53,8 @@ class PopulationRule(ABC):
         proposals
             What every agent's `step` returned. `proposals[a]` holds the proposals of agent a,
             one per row, best first; `proposals[a][0]` is its first choice. Agents may send
-            different numbers of proposals. Read-only.
+            different numbers of proposals. Read-only. When several rules are given, a later
+            rule gets what the rule before it decided, as one proposal per agent.
         landscape
             The landscape.
         rng

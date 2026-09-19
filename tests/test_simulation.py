@@ -119,9 +119,6 @@ class ChangesWhatItRecords(OneRandomTry):
 
 
 class ImitateTheBestEveryFifthPeriod(nk.PopulationRule):
-    def __init__(self) -> None:
-        self.period = 0
-
     def decide(
         self,
         population: nk.Population,
@@ -129,9 +126,8 @@ class ImitateTheBestEveryFifthPeriod(nk.PopulationRule):
         landscape: nk.Landscape,
         rng: Rng,
     ) -> ArrayLike:
-        self.period += 1
         first_choices = [ranked[0] for ranked in proposals]
-        if self.period % 5:
+        if population.period % 5:
             return first_choices
         best = max(first_choices, key=landscape.fitness)
         return np.tile(best, (len(proposals), 1))
@@ -242,6 +238,54 @@ class AnnouncesBeforeItSteps(OneRandomTry):
         return super().step(config, landscape, rng, population)
 
 
+class NotesThePeriodEverywhere(OneRandomTry):
+    def __init__(self) -> None:
+        self.before: list[int] = []
+        self.during: list[int] = []
+        self.after: list[int] = []
+
+    def before_period(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> None:
+        self.before.append(population.period)
+
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        self.during.append(population.period)
+        return super().step(config, landscape, rng, population)
+
+    def after_period(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> None:
+        self.after.append(population.period)
+
+
+class FlipsDecisionZeroForEveryone(nk.PopulationRule):
+    def __init__(self, name: str = "flips") -> None:
+        self.name = name
+        self.periods: list[int] = []
+        self.shapes: list[list[tuple[int, ...]]] = []
+        self.draws: list[float] = []
+
+    def decide(
+        self,
+        population: nk.Population,
+        proposals: Proposals,
+        landscape: nk.Landscape,
+        rng: Rng,
+    ) -> ArrayLike:
+        self.periods.append(population.period)
+        self.shapes.append([ranked.shape for ranked in proposals])
+        self.draws.append(float(rng.random()))
+        first_choices = np.array([ranked[0] for ranked in proposals])
+        first_choices[:, 0] = 1 - first_choices[:, 0]
+        return first_choices
+
+    def record(self) -> dict[str, float]:
+        return {self.name: len(self.periods)}
+
+
 class RuleThatChangesWhatItRecords(ChoosesTheBestProposalOfAnyone):
     def record(self) -> dict[str, float]:
         return {"a": 1.0} if len(self.shapes) < 2 else {"b": 1.0}
@@ -263,9 +307,9 @@ def test_three_agents_on_the_firm_without_a_rule() -> None:
     assert result.extra == {}
 
 
-def test_an_interaction_rule_changes_what_is_adopted() -> None:
+def test_a_population_rule_changes_what_is_adopted() -> None:
     rule = ImitateTheBestEveryFifthPeriod()
-    result = nk.run(FIRM, three_agents(), periods=6, rng=3, starts=THREE_STARTS, rule=rule)
+    result = nk.run(FIRM, three_agents(), periods=6, rng=3, starts=THREE_STARTS, rules=[rule])
     assert labels(result.configs[0]) == ["010", "000", "000", "000", "000", "111", "111"]
     assert labels(result.configs[1]) == ["010", "011", "001", "101", "101", "111", "111"]
     assert labels(result.configs[2]) == ["100", "110", "110", "110", "110", "111", "111"]
@@ -279,7 +323,7 @@ def test_without_a_rule_the_first_of_several_proposals_is_adopted() -> None:
 def test_a_rule_gets_every_proposal_and_may_choose_among_them() -> None:
     rule = ChoosesTheBestProposalOfAnyone()
     agents = [SendsItsTwoBestNeighbours(), BestNeighbour()]
-    result = nk.run(FIRM, agents, periods=2, rng=1, starts=[[0, 1, 0], [1, 0, 1]], rule=rule)
+    result = nk.run(FIRM, agents, periods=2, rng=1, starts=[[0, 1, 0], [1, 0, 1]], rules=[rule])
     assert rule.shapes == [[(2, 3), (1, 3)]] * 2
     assert labels(result.configs[0]) == ["010", "111", "111"]
     assert labels(result.configs[1]) == ["101", "111", "111"]
@@ -295,7 +339,7 @@ def test_invalid_proposals_are_rejected(answer: ArrayLike) -> None:
 def test_after_period_tells_the_agent_what_it_really_got() -> None:
     agents = [RemembersWhatItWasTold(), RemembersWhatItWasTold(), RemembersWhatItWasTold()]
     rule = ImitateTheBestEveryFifthPeriod()
-    result = nk.run(FIRM, agents, periods=6, rng=3, starts=THREE_STARTS, rule=rule)
+    result = nk.run(FIRM, agents, periods=6, rng=3, starts=THREE_STARTS, rules=[rule])
     for a, agent in enumerate(agents):
         assert agent.got == labels(result.configs[a])[1:]
         assert agent.fitness_seen == result.fitness.max(axis=0)[1:].tolist()
@@ -314,15 +358,71 @@ def test_every_before_period_runs_before_any_agent_steps() -> None:
     assert len(board) == 3 * 4
 
 
+def test_every_hook_and_every_rule_is_told_the_period_being_played() -> None:
+    agent, rule = NotesThePeriodEverywhere(), FlipsDecisionZeroForEveryone()
+    nk.run(FIRM, [agent], periods=4, rng=1, rules=[rule])
+    assert agent.before == agent.during == agent.after == rule.periods == [1, 2, 3, 4]
+
+
+def test_rules_are_applied_one_after_the_other() -> None:
+    best, flip = ChoosesTheBestProposalOfAnyone(), FlipsDecisionZeroForEveryone()
+    agents = [SendsItsTwoBestNeighbours(), BestNeighbour()]
+    starts = [[0, 0, 0], [0, 0, 0]]
+
+    result = nk.run(FIRM, agents, periods=1, rng=1, starts=starts, rules=[best, flip])
+    assert labels(result.configs[:, 1]) == ["100", "100"]
+    assert best.shapes == [[(2, 3), (1, 3)]]
+    assert flip.shapes == [[(1, 3), (1, 3)]]
+    assert result.rule_extra["overruled"].tolist() == [0, 1]
+    assert result.rule_extra["flips"].tolist() == [0, 1]
+
+    other_order = nk.run(
+        FIRM,
+        [SendsItsTwoBestNeighbours(), BestNeighbour()],
+        periods=1,
+        rng=1,
+        starts=starts,
+        rules=[FlipsDecisionZeroForEveryone(), ChoosesTheBestProposalOfAnyone()],
+    )
+    assert labels(other_order.configs[:, 1]) == ["101", "101"]
+
+
+def test_every_rule_has_its_own_random_stream() -> None:
+    alone = FlipsDecisionZeroForEveryone()
+    nk.run(FIRM, three_agents(), periods=3, rng=9, rules=[alone])
+
+    first, second = FlipsDecisionZeroForEveryone("a"), FlipsDecisionZeroForEveryone("b")
+    nk.run(FIRM, three_agents(), periods=3, rng=9, rules=[first, second])
+    assert first.draws == alone.draws
+    assert second.draws != first.draws
+
+
+def test_a_bare_rule_instead_of_a_list_is_rejected_clearly() -> None:
+    with pytest.raises(TypeError, match=r"pass \[rule\]"):
+        nk.run(FIRM, three_agents(), periods=1, rng=1, rules=FlipsDecisionZeroForEveryone())  # type: ignore[arg-type]
+
+
+def test_the_same_rule_object_twice_is_rejected() -> None:
+    rule = FlipsDecisionZeroForEveryone()
+    with pytest.raises(ValueError, match="every rule must be its own object"):
+        nk.run(FIRM, three_agents(), periods=1, rng=1, rules=[rule, rule])
+
+
+def test_two_rules_recording_the_same_name_are_rejected() -> None:
+    rules = [FlipsDecisionZeroForEveryone(), FlipsDecisionZeroForEveryone()]
+    with pytest.raises(ValueError, match="two rules record the same name 'flips'"):
+        nk.run(FIRM, three_agents(), periods=1, rng=1, rules=rules)
+
+
 def test_a_rule_without_record_leaves_rule_extra_empty() -> None:
     rule = ImitateTheBestEveryFifthPeriod()
-    result = nk.run(FIRM, three_agents(), periods=2, rng=3, rule=rule)
+    result = nk.run(FIRM, three_agents(), periods=2, rng=3, rules=[rule])
     assert result.rule_extra == {}
 
 
 def test_a_rule_that_changes_its_recorded_names_is_rejected() -> None:
-    with pytest.raises(ValueError, match=r"the population rule started with \['a'\].*\['b'\]"):
-        nk.run(FIRM, three_agents(), periods=5, rng=1, rule=RuleThatChangesWhatItRecords())
+    with pytest.raises(ValueError, match=r"rule 0 started with \['a'\].*\['b'\]"):
+        nk.run(FIRM, three_agents(), periods=5, rng=1, rules=[RuleThatChangesWhatItRecords()])
 
 
 def test_result_shapes_put_the_agent_first() -> None:
@@ -382,11 +482,11 @@ def test_giving_the_starts_does_not_change_the_agents_randomness() -> None:
     assert np.array_equal(drawn.configs, given.configs)
 
 
-def test_the_interactions_randomness_does_not_disturb_the_agents() -> None:
+def test_the_rules_randomness_does_not_disturb_the_agents() -> None:
     land = nk.Landscape.random_k(10, 3, rng=1)
     rule = DrawsRandomNumbersButChangesNothing()
     without = nk.run(land, [OneRandomTry() for _ in range(5)], periods=30, rng=7)
-    with_rule = nk.run(land, [OneRandomTry() for _ in range(5)], 30, rng=7, rule=rule)
+    with_rule = nk.run(land, [OneRandomTry() for _ in range(5)], 30, rng=7, rules=[rule])
     assert np.array_equal(without.configs, with_rule.configs)
 
 
@@ -472,9 +572,9 @@ def test_an_agent_that_returns_no_valid_configuration_is_stopped(answer: ArrayLi
         ("edits its input", "read-only"),
     ],
 )
-def test_an_interaction_that_misbehaves_is_stopped(answer: str, message: str) -> None:
+def test_a_rule_that_misbehaves_is_stopped(answer: str, message: str) -> None:
     with pytest.raises(ValueError, match=message):
-        nk.run(FIRM, three_agents(), periods=2, rng=1, rule=AppliesWith(answer))
+        nk.run(FIRM, three_agents(), periods=2, rng=1, rules=[AppliesWith(answer)])
 
 
 def test_agent_and_rule_cannot_be_created_without_their_method() -> None:

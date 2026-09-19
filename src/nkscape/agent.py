@@ -30,7 +30,7 @@ class Agent(ABC):
         """
         The configuration the agent wants to be at in the next period.
 
-        Return one configuration, or several in order of preference, best first. Without an
+        Return one configuration, or several in order of preference, best first. Without a
         population rule the first is adopted; a population rule gets all of them.
 
         Parameters

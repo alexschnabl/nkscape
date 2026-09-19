@@ -30,16 +30,17 @@ All notable changes to this project are documented here. The format follows
   several, best first. Optional: `before_period(...)` runs for every agent before any agent
   steps; `after_period(...)` is told what the agent really ended up with once the period is over;
   `record()` logs extra values per period.
-- `nk.run(landscape, agents, periods, rng, starts=None, rule=None, build_cube=None)` runs
-  a population in lockstep: every period all agents step, each seeing the same read-only
-  `nk.Population` snapshot (everybody's configuration and fitness at the end of the last period);
-  then an optional `nk.PopulationRule` rule gets every agent's proposals and decides what is really
-  adopted (without a rule, the first choice); then `after_period` is called. Returns an
-  `nk.RunResult` with `configs[agent, period]`, `fitness[agent, period]`, `extra` (from agents)
-  and `rule_extra` (from the rule's own `record()`). Every agent has its own random
-  streams, so without a population rule it walks the same way alone as in a crowd. The fitness
-  cube is built first when the run is long enough to repay it
-  (agents x periods >= 2^N x N / 40,000); `build_cube=True/False` overrides that.
+- `nk.run(landscape, agents, periods, rng, starts=None, rules=(), build_cube=None)` runs a
+  population in lockstep. Every period: every agent's `before_period`; every agent's `step`, each
+  seeing the same read-only `nk.Population` snapshot (everybody's configuration and fitness, and
+  `period`, the period being played); then the `nk.PopulationRule`s, applied one after the other,
+  get the proposals and `decide` what is really adopted (without rules, the first choice); then
+  every agent's `after_period`. Returns an `nk.RunResult` with `configs[agent, period]`,
+  `fitness[agent, period]`, `extra` (from the agents' `record()`) and `rule_extra` (from the
+  rules' `record()`). Every agent and every rule has its own random stream, so without rules an
+  agent walks the same way alone as in a crowd. The fitness cube is built first when the run is
+  long enough to repay it (agents x periods >= 2^N x N / 40,000); `build_cube=True/False`
+  overrides that.
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
   and then rounded, so a seed gives the same landscape in either size. Default stays float64.
