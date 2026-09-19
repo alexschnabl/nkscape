@@ -9,11 +9,11 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from nkscape.agent import Agent
-from nkscape.configuration import check_configuration, check_configurations
-from nkscape.landscape import Landscape
+from nkscape.configuration import check_configuration
+from nkscape.landscape import Landscape, get_enumeration_limit
 from nkscape.population import Interaction, Population
 
-CUBE_IS_CHEAP_UP_TO = 20
+CUBE_CELLS_WORTH_ONE_AGENT_PERIOD = 40_000
 
 
 @dataclass(frozen=True)
@@ -64,8 +64,9 @@ def run(
         A rule applied to the whole population after every agent has stepped.
     build_cube
         Whether to build the landscape's fitness cube first, which makes every period about ten
-        times faster. By default it is built for N up to 20, where that costs little. `True`
-        builds it for any N within the enumeration limit, `False` never builds it.
+        times faster. By default it is built when the run is long enough to repay the cost of
+        building it: agents x periods >= 2^N x N / 40,000 (and N is within the enumeration
+        limit). `True` always builds it, `False` never does.
     """
     if periods < 0:
         raise ValueError(f"periods must not be negative, got {periods}")
@@ -75,10 +76,12 @@ def run(
         raise ValueError("at least one agent is needed")
     if len({id(agent) for agent in agents}) != len(agents):
         raise ValueError("every agent must be its own object; the same agent was given twice")
-    if build_cube or (build_cube is None and landscape.n <= CUBE_IS_CHEAP_UP_TO):
+    n, count = landscape.n, len(agents)
+    work = count * periods * CUBE_CELLS_WORTH_ONE_AGENT_PERIOD
+    pays_off = n <= get_enumeration_limit() and work >= 2**n * n
+    if build_cube or (build_cube is None and pays_off):
         landscape.fitness_cube()
 
-    n, count = landscape.n, len(agents)
     interaction_rng, agents_rng = np.random.default_rng(rng).spawn(2)
     streams = [stream.spawn(2) for stream in agents_rng.spawn(count)]
 
@@ -91,7 +94,7 @@ def run(
         for a in range(count):
             configs[a, 0] = landscape.random_configuration(streams[a][0])
     else:
-        configs[:, 0] = check_configurations(starts, count, n)
+        configs[:, 0] = check_configuration(starts, n, count)
 
     for t in range(periods + 1):
         if t > 0:
@@ -110,7 +113,7 @@ def run(
             else:
                 proposed.setflags(write=False)
                 adopted = interaction.apply(population, proposed, landscape, interaction_rng)
-                configs[:, t] = check_configurations(adopted, count, n)
+                configs[:, t] = check_configuration(adopted, n, count)
 
         for a, agent in enumerate(agents):
             fitness[a, t] = landscape.fitness(configs[a, t])

@@ -59,7 +59,7 @@ def test_tables_built_for_a_different_matrix_are_rejected() -> None:
 
 def test_bad_configuration_is_rejected() -> None:
     land = nk.Landscape(FIRM, FIRM_TABLES)
-    with pytest.raises(ValueError, match="must have 3 values"):
+    with pytest.raises(ValueError, match="expected 3 values"):
         land.fitness([1, 0])
 
 

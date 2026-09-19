@@ -317,7 +317,7 @@ def test_an_agent_that_edits_what_it_is_shown_is_stopped(agent: nk.Agent) -> Non
 
 @pytest.mark.parametrize("answer", [[1, 0], [1, 2, 0], [[1, 0, 1]]])
 def test_an_agent_that_returns_no_valid_configuration_is_stopped(answer: ArrayLike) -> None:
-    with pytest.raises(ValueError, match="configuration"):
+    with pytest.raises(ValueError, match=r"expected 3 values|only contain 0 and 1"):
         nk.run(FIRM, [Returns(answer)], periods=2, rng=1)
 
 
@@ -353,13 +353,33 @@ def test_results_are_read_only() -> None:
         assert not array.flags.writeable
 
 
-def test_the_cube_is_built_up_to_n_20_by_default() -> None:
-    small = nk.Landscape.next_k(20, 2, rng=1)
-    large = nk.Landscape.next_k(21, 2, rng=1)
-    nk.run(small, [OneRandomTry()], periods=1, rng=1)
-    nk.run(large, [OneRandomTry()], periods=1, rng=1)
-    assert small._fitness_cube is not None
-    assert large._fitness_cube is None
+def test_a_small_landscape_gets_its_cube_even_for_a_tiny_run() -> None:
+    land = nk.Landscape.next_k(8, 2, rng=1)
+    nk.run(land, [OneRandomTry()], periods=1, rng=1)
+    assert land._fitness_cube is not None
+
+
+def test_the_cube_is_built_only_when_the_run_is_long_enough_to_repay_it() -> None:
+    needed = 2**20 * 20 / 40_000
+    assert 100 < needed < 600
+
+    short = nk.Landscape.next_k(20, 2, rng=1)
+    nk.run(short, [OneRandomTry()], periods=100, rng=1)
+    assert short._fitness_cube is None
+
+    long = nk.Landscape.next_k(20, 2, rng=1)
+    nk.run(long, [OneRandomTry() for _ in range(6)], periods=100, rng=1)
+    assert long._fitness_cube is not None
+
+
+def test_the_cube_is_never_built_automatically_above_the_enumeration_limit() -> None:
+    land = nk.Landscape.next_k(6, 2, rng=1)
+    nk.set_enumeration_limit(5)
+    try:
+        nk.run(land, [OneRandomTry() for _ in range(3)], periods=50, rng=1)
+    finally:
+        nk.set_enumeration_limit(24)
+    assert land._fitness_cube is None
 
 
 def test_build_cube_can_be_forced_or_forbidden() -> None:

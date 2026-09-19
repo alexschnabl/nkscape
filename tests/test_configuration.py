@@ -17,7 +17,7 @@ def test_anything_holding_n_zeros_and_ones_is_accepted(config: ArrayLike) -> Non
 
 @pytest.mark.parametrize("config", [[1, 0], [1, 0, 1, 1], [[1, 0, 1]], 1])
 def test_wrong_length_or_nesting_is_rejected(config: ArrayLike) -> None:
-    with pytest.raises(ValueError, match="must have 3 values"):
+    with pytest.raises(ValueError, match="expected 3 values"):
         check_configuration(config, 3)
 
 
@@ -25,6 +25,15 @@ def test_wrong_length_or_nesting_is_rejected(config: ArrayLike) -> None:
 def test_values_other_than_0_and_1_are_rejected(config: ArrayLike) -> None:
     with pytest.raises(ValueError, match="0 and 1"):
         check_configuration(config, 3)
+
+
+def test_several_configurations_at_once() -> None:
+    rows = check_configuration([[1, 0, 1], [0, 0, 0]], 3, count=2)
+    assert rows.shape == (2, 3)
+    with pytest.raises(ValueError, match="expected 2 configurations of 3 values"):
+        check_configuration([[1, 0, 1]], 3, count=2)
+    with pytest.raises(ValueError, match="0 and 1"):
+        check_configuration([[1, 0, 1], [0, 2, 0]], 3, count=2)
 
 
 def test_the_input_is_not_changed_or_shared() -> None:

@@ -34,8 +34,8 @@ All notable changes to this project are documented here. The format follows
   then an optional `nk.Interaction` rule decides what is really adopted. Returns an
   `nk.RunResult` with `configs[agent, period]`, `fitness[agent, period]` and `extra`.
   Every agent has its own random streams, so without an interaction rule it walks the same way
-  alone as in a crowd. The fitness cube is built first for N up to 20; `build_cube` overrides
-  that.
+  alone as in a crowd. The fitness cube is built first when the run is long enough to repay it
+  (agents x periods >= 2^N x N / 40,000); `build_cube=True/False` overrides that.
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
   and then rounded, so a seed gives the same landscape in either size. Default stays float64.

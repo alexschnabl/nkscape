@@ -162,7 +162,7 @@ def test_contributions_are_a_row_of_n_decimals() -> None:
 
 def test_configuration_of_wrong_length_is_rejected() -> None:
     t = nk.ContributionTables(FIRM, FIRM_TABLES)
-    with pytest.raises(ValueError, match=r"must have 3 values.*got shape \(2,\)"):
+    with pytest.raises(ValueError, match=r"expected 3 values.*got shape \(2,\)"):
         t.contributions([1, 0])
 
 
