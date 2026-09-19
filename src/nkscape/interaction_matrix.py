@@ -57,10 +57,8 @@ class InteractionMatrix:
 
         # The grid cannot change, so its rows and columns are read once and kept.
         self._depends_on = tuple(np.flatnonzero(row) for row in self.grid)
-        for positions in self._depends_on:
-            positions.setflags(write=False)
         self._affects = tuple(np.flatnonzero(column) for column in self.grid.T)
-        for positions in self._affects:
+        for positions in (*self._depends_on, *self._affects):
             positions.setflags(write=False)
 
     @classmethod

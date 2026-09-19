@@ -181,7 +181,9 @@ def test_the_enumeration_limit_can_be_changed() -> None:
 
 def test_the_refusal_says_how_much_memory_and_how_to_raise_the_limit() -> None:
     land = nk.Landscape.next_k(30, 0, rng=1)
-    with pytest.raises(ValueError, match=r"about 10\.7 GB.*nk\.set_enumeration_limit\(30\)"):
+    with pytest.raises(
+        ValueError, match=r"about 10\.7 GB of memory with float64.*nk\.set_enumeration_limit\(30\)"
+    ):
         land.fitness_cube()
 
 
@@ -290,6 +292,53 @@ def test_random_configurations_are_about_half_ones() -> None:
     gen = np.random.default_rng(4)
     share = np.mean([land.random_configuration(gen) for _ in range(2000)])
     assert share == pytest.approx(0.5, abs=0.02)
+
+
+@pytest.mark.parametrize("build", [nk.Landscape.random_k, nk.Landscape.next_k])
+def test_a_float32_landscape_is_float32_throughout(build: Builder) -> None:
+    land = build(10, 3, rng=41, dtype=np.float32)
+    config = land.random_configuration(rng=42)
+    assert land.tables.dtype == np.float32
+    assert land.contributions(config).dtype == np.float32
+    assert land.neighbour_fitness(config).dtype == np.float32
+    cube = land.fitness_cube()
+    assert cube.dtype == np.float32
+    assert cube.nbytes == 4 * 2**10
+    assert land.neighbour_fitness(config).dtype == np.float32
+    assert type(land.fitness(config)) is float
+
+
+@pytest.mark.parametrize("k", [0, 5, 15])
+def test_a_float32_cube_equals_float32_fitness_bit_for_bit(k: int) -> None:
+    looked_up = nk.Landscape.random_k(16, k, rng=43, dtype=np.float32)
+    from_cube = nk.Landscape.random_k(16, k, rng=43, dtype=np.float32)
+    from_cube.fitness_cube()
+    gen = np.random.default_rng(44)
+    for _ in range(300):
+        config = looked_up.random_configuration(gen)
+        assert looked_up.fitness(config) == from_cube.fitness(config)
+        assert np.array_equal(
+            looked_up.neighbour_fitness(config), from_cube.neighbour_fitness(config)
+        )
+
+
+def test_a_float32_landscape_is_the_float64_landscape_rounded() -> None:
+    full = nk.Landscape.random_k(10, 3, rng=45)
+    half = nk.Landscape.random_k(10, 3, rng=45, dtype=np.float32)
+    assert np.array_equal(full.matrix.grid, half.matrix.grid)
+    assert np.allclose(full.fitness_cube(), half.fitness_cube(), atol=1e-6)
+    assert half.count_peaks() == full.count_peaks()
+
+
+def test_with_random_tables_passes_the_dtype_on() -> None:
+    land = nk.Landscape.with_random_tables(FIRM, rng=46, dtype=np.float32)
+    assert land.tables.dtype == np.float32
+
+
+def test_the_refusal_quotes_the_memory_for_the_landscapes_dtype() -> None:
+    land = nk.Landscape.next_k(30, 0, rng=1, dtype=np.float32)
+    with pytest.raises(ValueError, match=r"about 6\.4 GB of memory with float32"):
+        land.fitness_cube()
 
 
 def test_with_random_tables_keeps_the_given_matrix() -> None:

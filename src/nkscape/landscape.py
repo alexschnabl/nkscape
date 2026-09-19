@@ -5,14 +5,15 @@ The NK fitness landscape.
 from typing import Self
 
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 from nkscape.configuration import check_configuration
 from nkscape.contribution_tables import ContributionTables
 from nkscape.interaction_matrix import InteractionMatrix
 
-# Looking at every configuration holds 2^N fitness values in memory: 8 bytes per configuration
-# for the cube, about 10 while the peaks are searched. N = 24 stays below 0.2 GB.
+# Looking at every configuration holds 2^N fitness values in memory. With float64 that is 8 bytes
+# per configuration for the cube and about 10 while the peaks are searched (4 and 6 with
+# float32). N = 24 stays below 0.2 GB.
 DEFAULT_ENUMERATION_LIMIT = 24
 
 _enumeration_limit = DEFAULT_ENUMERATION_LIMIT
@@ -29,9 +30,10 @@ def set_enumeration_limit(n: int) -> None:
     """
     Change the largest N for which every configuration of a landscape may be looked at.
 
-    The limit protects against running out of memory; it never changes a result. The fitness
-    cube needs 8 bytes per configuration, and searching it for peaks about 10: 0.17 GB for
-    N = 24, 2.7 GB for N = 28, 10.7 GB for N = 30, doubling with every further decision.
+    The limit protects against running out of memory; it never changes a result. With float64
+    the fitness cube needs 8 bytes per configuration, and searching it for peaks about 10:
+    0.17 GB for N = 24, 2.7 GB for N = 28, 10.7 GB for N = 30, doubling with every further
+    decision. With float32 tables it is 4 and 6 bytes.
 
     Parameters
     ----------
@@ -69,12 +71,17 @@ class Landscape:
         self.matrix: InteractionMatrix = matrix
         self.tables: ContributionTables = tables
         self.n: int = matrix.n
-        self._fitness_cube: NDArray[np.float64] | None = None
+        self._fitness_cube: NDArray[np.floating] | None = None
         self._flips: NDArray[np.int_] = np.eye(self.n, dtype=int)
         self._flips.setflags(write=False)
 
     @classmethod
-    def with_random_tables(cls, matrix: InteractionMatrix, rng: int | np.random.Generator) -> Self:
+    def with_random_tables(
+        cls,
+        matrix: InteractionMatrix,
+        rng: int | np.random.Generator,
+        dtype: DTypeLike = np.float64,
+    ) -> Self:
         """
         Landscape for a given interaction matrix, with random contribution tables.
 
@@ -84,11 +91,16 @@ class Landscape:
             The interaction matrix.
         rng
             A seed, or a generator to draw from. The same seed always gives the same tables.
+        dtype
+            How the numbers are stored: `float64` (default) or `float32`, which halves the
+            memory. See `ContributionTables`.
         """
-        return cls(matrix, ContributionTables.random(matrix, rng))
+        return cls(matrix, ContributionTables.random(matrix, rng, dtype))
 
     @classmethod
-    def random_k(cls, n: int, k: int, rng: int | np.random.Generator) -> Self:
+    def random_k(
+        cls, n: int, k: int, rng: int | np.random.Generator, dtype: DTypeLike = np.float64
+    ) -> Self:
         """
         Landscape with a random-K interaction matrix and random contribution tables.
 
@@ -100,12 +112,18 @@ class Landscape:
             Number of decisions, and number of other decisions per contribution.
         rng
             A seed, or a generator to draw from. The same seed always gives the same landscape.
+        dtype
+            How the numbers are stored: `float64` (default) or `float32`, which halves the
+            memory. See `ContributionTables`.
         """
         matrix_rng, tables_rng = np.random.default_rng(rng).spawn(2)
-        return cls.with_random_tables(InteractionMatrix.random_k(n, k, matrix_rng), tables_rng)
+        matrix = InteractionMatrix.random_k(n, k, matrix_rng)
+        return cls.with_random_tables(matrix, tables_rng, dtype)
 
     @classmethod
-    def next_k(cls, n: int, k: int, rng: int | np.random.Generator) -> Self:
+    def next_k(
+        cls, n: int, k: int, rng: int | np.random.Generator, dtype: DTypeLike = np.float64
+    ) -> Self:
         """
         Landscape with a next-K interaction matrix and random contribution tables.
 
@@ -115,10 +133,13 @@ class Landscape:
             Number of decisions, and number of other decisions per contribution.
         rng
             A seed, or a generator to draw from. The same seed always gives the same landscape.
+        dtype
+            How the numbers are stored: `float64` (default) or `float32`, which halves the
+            memory. See `ContributionTables`.
         """
-        return cls.with_random_tables(InteractionMatrix.next_k(n, k), rng)
+        return cls.with_random_tables(InteractionMatrix.next_k(n, k), rng, dtype)
 
-    def contributions(self, config: ArrayLike) -> NDArray[np.float64]:
+    def contributions(self, config: ArrayLike) -> NDArray[np.floating]:
         """
         The fitness contributions of one configuration, one value per decision.
         """
@@ -145,7 +166,7 @@ class Landscape:
         row = check_configuration(config, self.n)
         return row ^ self._flips
 
-    def neighbour_fitness(self, config: ArrayLike) -> NDArray[np.float64]:
+    def neighbour_fitness(self, config: ArrayLike) -> NDArray[np.floating]:
         """
         The fitness of every neighbour: entry j is the fitness after flipping decision j.
 
@@ -153,9 +174,9 @@ class Landscape:
         """
         neighbours = self.neighbours(config)
         if self._fitness_cube is not None:
-            from_cube: NDArray[np.float64] = self._fitness_cube[tuple(neighbours.T)]
+            from_cube: NDArray[np.floating] = self._fitness_cube[tuple(neighbours.T)]
             return from_cube
-        return np.array([self.fitness(row) for row in neighbours])
+        return np.array([self.fitness(row) for row in neighbours], dtype=self.tables.dtype)
 
     def is_peak(self, config: ArrayLike) -> bool:
         """
@@ -169,7 +190,7 @@ class Landscape:
         """
         return np.random.default_rng(rng).integers(2, size=self.n)
 
-    def fitness_cube(self) -> NDArray[np.float64]:
+    def fitness_cube(self) -> NDArray[np.floating]:
         """
         The fitness of every configuration, as an array with N axes of length 2.
 
@@ -187,10 +208,11 @@ class Landscape:
                 raise ValueError(
                     f"looking at every configuration needs 2^N fitness values; N = {self.n} "
                     f"is above the limit of {_enumeration_limit}. For N = {self.n} that takes "
-                    f"about {10 * 2**self.n / 1e9:.1f} GB of memory; if this machine has that, "
-                    f"raise the limit with nk.set_enumeration_limit({self.n})"
+                    f"about {(self.tables.dtype.itemsize + 2) * 2**self.n / 1e9:.1f} GB of memory "
+                    f"with {self.tables.dtype}; if this machine has that, raise the limit with "
+                    f"nk.set_enumeration_limit({self.n})"
                 )
-            cube = np.zeros((2,) * self.n)
+            cube = np.zeros((2,) * self.n, dtype=self.tables.dtype)
             for i in range(self.n):
                 cube += self.tables.contribution_cube(i)
             cube /= self.n

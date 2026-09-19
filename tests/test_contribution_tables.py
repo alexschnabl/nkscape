@@ -2,7 +2,7 @@ from itertools import product
 
 import numpy as np
 import pytest
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, DTypeLike
 
 import nkscape as nk
 
@@ -198,6 +198,36 @@ def test_contribution_cube_copies_nothing_and_is_read_only() -> None:
     cube = t.contribution_cube(0)
     assert np.shares_memory(cube, t.tables[0])
     assert not cube.flags.writeable
+
+
+def test_tables_are_float64_by_default() -> None:
+    assert nk.ContributionTables(FIRM, FIRM_TABLES).dtype == np.float64
+    t = nk.ContributionTables.random(FIRM, rng=1)
+    assert t.dtype == np.float64
+    assert all(table.dtype == np.float64 for table in t.tables)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, "float32", np.dtype(np.float32)])
+def test_float32_tables_use_half_the_memory(dtype: DTypeLike) -> None:
+    m = nk.InteractionMatrix.next_k(10, 5)
+    full = nk.ContributionTables.random(m, rng=1)
+    half = nk.ContributionTables.random(m, rng=1, dtype=dtype)
+    assert half.dtype == np.float32
+    assert all(table.dtype == np.float32 for table in half.tables)
+    assert sum(t.nbytes for t in half.tables) * 2 == sum(t.nbytes for t in full.tables)
+    assert half.contributions([0] * 10).dtype == np.float32
+    assert half.contribution_cube(0).dtype == np.float32
+
+
+def test_hand_made_tables_can_be_float32() -> None:
+    t = nk.ContributionTables(FIRM, FIRM_TABLES, dtype=np.float32)
+    assert t.contributions([1, 0, 1]) == pytest.approx([0.2, 0.2, 0.9], rel=1e-6)
+
+
+@pytest.mark.parametrize("dtype", [np.float16, int, "complex128"])
+def test_other_dtypes_are_rejected(dtype: DTypeLike) -> None:
+    with pytest.raises(ValueError, match="float64 or float32"):
+        nk.ContributionTables.random(FIRM, rng=1, dtype=dtype)
 
 
 def test_writing_into_a_table_is_refused() -> None:
