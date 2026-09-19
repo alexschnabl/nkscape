@@ -105,5 +105,6 @@ class ContributionTables:
         No numbers are copied; the table is only viewed along the decisions it does not
         depend on.
         """
-        shape = [2 if x else 1 for x in self.matrix.grid[i]]
+        # an axis has 2^1 = 2 entries for a decision the contribution depends on, 2^0 = 1 otherwise
+        shape = 2 ** self.matrix.grid[i]
         return np.broadcast_to(self.tables[i].reshape(shape), (2,) * self.n)
