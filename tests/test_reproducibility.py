@@ -9,8 +9,17 @@ as a change of results.
 """
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
 import nkscape as nk
+
+
+class OneRandomTry(nk.Agent):
+    def step(
+        self, config: NDArray[np.int_], landscape: nk.Landscape, rng: np.random.Generator
+    ) -> ArrayLike:
+        candidate: NDArray[np.int_] = landscape.neighbours(config)[rng.integers(landscape.n)]
+        return candidate if landscape.fitness(candidate) > landscape.fitness(config) else config
 
 
 def test_pinned_random_k_matrix_for_seed_42() -> None:
@@ -69,15 +78,11 @@ def test_pinned_random_configuration_for_seed_5() -> None:
 
 
 def test_entry_p_of_table_i_is_a_fixed_draw_of_the_tables_stream() -> None:
-    # The rule every future backend (on-demand, GPU) has to reproduce: the tables are filled in
-    # order, so entry p of table i is draw number (sizes of tables 0..i-1) + p of the stream.
-    # Jumping ahead that many draws reaches the same number without building any table.
     m = nk.InteractionMatrix.random_k(6, 2, rng=1)
     t = nk.ContributionTables.random(m, rng=42)
     sizes = [table.size for table in t.tables]
     for i in range(m.n):
         for p in range(sizes[i]):
-            # default_rng(42) is a Generator on PCG64(42); PCG64 can jump ahead
             stream = np.random.Generator(np.random.PCG64(42).advance(sum(sizes[:i]) + p))
             assert stream.random() == t.tables[i].flat[p]
 
@@ -97,3 +102,24 @@ def test_float32_tables_are_the_float64_draws_rounded() -> None:
     half = nk.ContributionTables.random(m, rng=42, dtype=np.float32)
     for a, b in zip(full.tables, half.tables, strict=True):
         assert np.array_equal(a.astype(np.float32), b)
+
+
+def test_pinned_walk_for_seed_42() -> None:
+    land = nk.Landscape.random_k(10, 3, rng=42)
+    result = nk.run(land, OneRandomTry(), periods=12, rng=42)
+    assert ["".join(map(str, config)) for config in result.configs] == [
+        "0111010011",
+        "1111010011",
+        "1111110011",
+        "1111110011",
+        "1111110011",
+        "1111111011",
+        "1111101011",
+        "1111101011",
+        "1111101011",
+        "1111101011",
+        "1111101011",
+        "1111101011",
+        "1111101011",
+    ]
+    assert result.fitness[-1] == 0.785100747115253

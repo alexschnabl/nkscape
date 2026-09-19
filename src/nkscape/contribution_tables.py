@@ -103,8 +103,6 @@ class ContributionTables:
         """
         rng = np.random.default_rng(rng)
         shapes = [(2,) * len(matrix.depends_on(i)) for i in range(matrix.n)]
-        # a generator: each table is drawn only when __init__ asks for it, and its float64
-        # draw is released as soon as the stored copy exists
         return cls(matrix, (rng.random(shape) for shape in shapes), dtype)
 
     def contributions(self, config: ArrayLike) -> NDArray[np.floating]:
@@ -136,6 +134,5 @@ class ContributionTables:
         No numbers are copied; the table is only viewed along the decisions it does not
         depend on.
         """
-        # an axis has 2^1 = 2 entries for a decision the contribution depends on, 2^0 = 1 otherwise
         shape = 2 ** self.matrix.grid[i]
         return np.broadcast_to(self.tables[i].reshape(shape), (2,) * self.n)

@@ -92,8 +92,6 @@ def test_fitness_cube_equals_fitness_bit_for_bit(k: int) -> None:
 
 @pytest.mark.parametrize("k", [0, 5, 19])
 def test_fitness_cube_equals_fitness_bit_for_bit_for_larger_n(k: int) -> None:
-    # NumPy's own sum adds in pairs once a row is long enough, which differs in the last digit;
-    # N = 20 is long enough to catch any summation that is not strictly left to right.
     looked_up = nk.Landscape.random_k(20, k, rng=24)
     cube = nk.Landscape.random_k(20, k, rng=24).fitness_cube()
     gen = np.random.default_rng(25)

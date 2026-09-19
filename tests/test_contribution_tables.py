@@ -57,8 +57,6 @@ def test_tables_can_come_from_a_generator() -> None:
 def test_creating_random_tables_needs_little_more_memory_than_the_tables(
     dtype: DTypeLike,
 ) -> None:
-    # K = N - 1: the tables are large. Each float64 draw must be released once it is stored,
-    # so the peak stays near the size of the stored tables plus one table in transit.
     m = nk.InteractionMatrix.next_k(16, 15)
     tracemalloc.start()
     t = nk.ContributionTables.random(m, rng=1, dtype=dtype)

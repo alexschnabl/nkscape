@@ -11,9 +11,6 @@ from nkscape.configuration import check_configuration
 from nkscape.contribution_tables import ContributionTables
 from nkscape.interaction_matrix import InteractionMatrix
 
-# Looking at every configuration holds 2^N fitness values in memory. With float64 that is 8 bytes
-# per configuration for the cube and about 10 while the peaks are searched (4 and 6 with
-# float32). N = 24 stays below 0.2 GB.
 DEFAULT_ENUMERATION_LIMIT = 24
 
 _enumeration_limit = DEFAULT_ENUMERATION_LIMIT
@@ -154,7 +151,6 @@ class Landscape:
         row = check_configuration(config, self.n)
         if self._fitness_cube is not None:
             return float(self._fitness_cube[tuple(row)])
-        # cumsum adds strictly left to right, the same order in which the cube is built
         return float(np.cumsum(self.tables.contributions(row))[-1] / self.n)
 
     def neighbours(self, config: ArrayLike) -> NDArray[np.int_]:

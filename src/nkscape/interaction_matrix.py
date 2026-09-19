@@ -54,8 +54,6 @@ class InteractionMatrix:
         self.grid: NDArray[np.int_] = grid.astype(int)
         self.grid.setflags(write=False)
         self.n: int = len(grid)
-
-        # The grid cannot change, so its rows and columns are read once and kept.
         self._depends_on = tuple(np.flatnonzero(row) for row in self.grid)
         self._affects = tuple(np.flatnonzero(column) for column in self.grid.T)
         for positions in (*self._depends_on, *self._affects):
