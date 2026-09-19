@@ -23,12 +23,14 @@ class RunResult:
 
     `configs[a, t]` is the configuration of agent a after period t and `fitness[a, t]` its
     fitness; t = 0 is the start. `extra[name][a, t]` holds what the agents' `record` returned,
-    NaN where an agent does not record that name. All arrays are read-only.
+    NaN where an agent does not record that name. `interaction_extra[name][t]` holds what the
+    interaction rule's `record` returned. All arrays are read-only.
     """
 
     configs: NDArray[np.int8]
     fitness: NDArray[np.floating]
     extra: dict[str, NDArray[np.float64]]
+    interaction_extra: dict[str, NDArray[np.float64]]
 
 
 def run(
@@ -44,7 +46,8 @@ def run(
     Let a population of agents walk a landscape for a number of periods.
 
     In every period all agents step, each seeing where everybody was at the end of the last
-    period; then the interaction rule, if any, decides what is really adopted.
+    period; then the interaction rule, if any, decides what is really adopted; then every agent's
+    `after_period` is told the outcome.
 
     Parameters
     ----------
@@ -61,7 +64,8 @@ def run(
     starts
         Where the agents start, one row per agent. Drawn at random if not given.
     interaction
-        A rule applied to the whole population after every agent has stepped.
+        A rule applied to the whole population after every agent has stepped. Without one, every
+        agent gets its first choice.
     build_cube
         Whether to build the landscape's fitness cube first, which makes every period about ten
         times faster. By default it is built when the run is long enough to repay the cost of
@@ -76,6 +80,7 @@ def run(
         raise ValueError("at least one agent is needed")
     if len({id(agent) for agent in agents}) != len(agents):
         raise ValueError("every agent must be its own object; the same agent was given twice")
+
     n, count = landscape.n, len(agents)
     work = count * periods * CUBE_CELLS_WORTH_ONE_AGENT_PERIOD
     pays_off = n <= get_enumeration_limit() and work >= 2**n * n
@@ -84,11 +89,15 @@ def run(
 
     interaction_rng, agents_rng = np.random.default_rng(rng).spawn(2)
     streams = [stream.spawn(2) for stream in agents_rng.spawn(count)]
+    recorders: list[Agent | Interaction] = [*agents]
+    if interaction is not None:
+        recorders.append(interaction)
 
     configs = np.empty((count, periods + 1, n), dtype=np.int8)
     fitness = np.empty((count, periods + 1), dtype=landscape.tables.dtype)
     extra: dict[str, NDArray[np.float64]] = {}
-    recorded_names: list[set[str]] = []
+    interaction_extra: dict[str, NDArray[np.float64]] = {}
+    names: list[set[str]] = []
 
     if starts is None:
         for a in range(count):
@@ -96,41 +105,57 @@ def run(
     else:
         configs[:, 0] = check_configuration(starts, n, count)
 
+    population = Population(configs[:, 0], fitness[:, 0])
     for t in range(periods + 1):
         if t > 0:
-            last_configs, last_fitness = configs[:, t - 1], fitness[:, t - 1]
-            last_configs.setflags(write=False)
-            last_fitness.setflags(write=False)
-            population = Population(last_configs, last_fitness)
-
-            proposed = np.empty((count, n), dtype=np.int8)
+            proposals: list[NDArray[np.int8]] = []
             for a, agent in enumerate(agents):
-                wanted = agent.step(last_configs[a], landscape, streams[a][1], population)
-                proposed[a] = check_configuration(wanted, n)
+                here, step_rng = population.configs[a], streams[a][1]
+                wanted = np.asarray(agent.step(here, landscape, step_rng, population))
+                ranked = check_configuration(wanted, n, len(wanted) if wanted.ndim == 2 else None)
+                proposal = ranked.reshape(-1, n).astype(np.int8)
+                proposal.setflags(write=False)
+                proposals.append(proposal)
 
             if interaction is None:
-                configs[:, t] = proposed
+                configs[:, t] = [proposal[0] for proposal in proposals]
             else:
-                proposed.setflags(write=False)
-                adopted = interaction.apply(population, proposed, landscape, interaction_rng)
+                adopted = interaction.apply(
+                    population, tuple(proposals), landscape, interaction_rng
+                )
                 configs[:, t] = check_configuration(adopted, n, count)
 
-        for a, agent in enumerate(agents):
+        for a in range(count):
             fitness[a, t] = landscape.fitness(configs[a, t])
-            recorded = agent.record()
+        now_configs, now_fitness = configs[:, t], fitness[:, t]
+        now_configs.setflags(write=False)
+        now_fitness.setflags(write=False)
+        population = Population(now_configs, now_fitness)
+
+        if t > 0:
+            for a, agent in enumerate(agents):
+                agent.after_period(now_configs[a], landscape, streams[a][1], population)
+
+        for r, recorder in enumerate(recorders):
+            recorded = recorder.record()
+            who = f"agent {r}" if r < count else "the interaction rule"
             if t == 0:
-                recorded_names.append(set(recorded))
-                for name in recorded:
-                    if name not in extra:
-                        extra[name] = np.full((count, periods + 1), np.nan)
-            elif set(recorded) != recorded_names[a]:
+                names.append(set(recorded))
+            elif set(recorded) != names[r]:
                 raise ValueError(
-                    f"record() must return the same names in every period: agent {a} started "
-                    f"with {sorted(recorded_names[a])}, got {sorted(recorded)} in period {t}"
+                    f"record() must return the same names in every period: {who} started "
+                    f"with {sorted(names[r])}, got {sorted(recorded)} in period {t}"
                 )
             for name, value in recorded.items():
-                extra[name][a, t] = value
+                if r < count:
+                    if name not in extra:
+                        extra[name] = np.full((count, periods + 1), np.nan)
+                    extra[name][r, t] = value
+                else:
+                    if name not in interaction_extra:
+                        interaction_extra[name] = np.full(periods + 1, np.nan)
+                    interaction_extra[name][t] = value
 
-    for array in (configs, fitness, *extra.values()):
+    for array in (configs, fitness, *extra.values(), *interaction_extra.values()):
         array.setflags(write=False)
-    return RunResult(configs, fitness, extra)
+    return RunResult(configs, fitness, extra, interaction_extra)

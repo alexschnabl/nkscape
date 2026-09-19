@@ -26,15 +26,18 @@ All notable changes to this project are documented here. The format follows
   length 2 (`cube[1, 0, 1]` is the fitness of 101), built by broadcasting, computed once,
   read-only, identical bit for bit to `fitness(config)`. Refused above N = 24.
 - `nk.Agent`: base class for anything that walks a landscape. Subclass it and write
-  `step(config, landscape, rng, population)`; optionally `record()` to log extra values per
-  period.
+  `step(config, landscape, rng, population)`, which returns the configuration wanted next - or
+  several, best first. Optional: `after_period(...)` is told what the agent really ended up with
+  once the period is over; `record()` logs extra values per period.
 - `nk.run(landscape, agents, periods, rng, starts=None, interaction=None, build_cube=None)` runs
   a population in lockstep: every period all agents step, each seeing the same read-only
-  `nk.Population` snapshot (everybody's configuration and fitness at the end of the last period),
-  then an optional `nk.Interaction` rule decides what is really adopted. Returns an
-  `nk.RunResult` with `configs[agent, period]`, `fitness[agent, period]` and `extra`.
-  Every agent has its own random streams, so without an interaction rule it walks the same way
-  alone as in a crowd. The fitness cube is built first when the run is long enough to repay it
+  `nk.Population` snapshot (everybody's configuration and fitness at the end of the last period);
+  then an optional `nk.Interaction` rule gets every agent's proposals and decides what is really
+  adopted (without a rule, the first choice); then `after_period` is called. Returns an
+  `nk.RunResult` with `configs[agent, period]`, `fitness[agent, period]`, `extra` (from agents)
+  and `interaction_extra` (from the rule's own `record()`). Every agent has its own random
+  streams, so without an interaction rule it walks the same way alone as in a crowd. The fitness
+  cube is built first when the run is long enough to repay it
   (agents x periods >= 2^N x N / 40,000); `build_cube=True/False` overrides that.
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64

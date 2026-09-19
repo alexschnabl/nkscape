@@ -29,6 +29,9 @@ class Agent(ABC):
         """
         The configuration the agent wants to be at in the next period.
 
+        Return one configuration, or several in order of preference, best first. Without an
+        interaction rule the first is adopted; an interaction rule gets all of them.
+
         Parameters
         ----------
         config
@@ -42,6 +45,21 @@ class Agent(ABC):
         population
             Where all agents were at the end of the last period, and what that was worth.
         """
+
+    def after_period(
+        self,
+        config: NDArray[np.int8],
+        landscape: Landscape,
+        rng: np.random.Generator,
+        population: Population,
+    ) -> None:
+        """
+        Called once every agent has stepped and the interaction rule has decided.
+
+        `config` is what the agent really ended up with, which need not be what it wanted, and
+        `population` is where everybody is now. The default does nothing.
+        """
+        return
 
     def record(self) -> dict[str, float]:
         """

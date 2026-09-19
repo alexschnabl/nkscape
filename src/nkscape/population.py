@@ -28,15 +28,15 @@ class Interaction(ABC):
     """
     A rule applied to the whole population once per period, after every agent has stepped.
 
-    It covers what is done to agents rather than decided by them: selection, vetoes, merging
-    of proposals. It may keep memory between periods in `self`.
+    It covers what is done to agents rather than decided by them: selection, vetoes, a central
+    choice among proposals. It may keep memory between periods in `self`.
     """
 
     @abstractmethod
     def apply(
         self,
         population: Population,
-        proposed: NDArray[np.int8],
+        proposals: tuple[NDArray[np.int8], ...],
         landscape: Landscape,
         rng: np.random.Generator,
     ) -> ArrayLike:
@@ -47,10 +47,20 @@ class Interaction(ABC):
         ----------
         population
             Where every agent was before this period.
-        proposed
-            What every agent's `step` returned, one row per agent. Read-only.
+        proposals
+            What every agent's `step` returned. `proposals[a]` holds the proposals of agent a,
+            one per row, best first; `proposals[a][0]` is its first choice. Agents may send
+            different numbers of proposals. Read-only.
         landscape
             The landscape.
         rng
             The interaction's own random stream.
         """
+
+    def record(self) -> dict[str, float]:
+        """
+        Extra values to record in every period, by name. The default records nothing.
+
+        The names must be the same in every period.
+        """
+        return {}

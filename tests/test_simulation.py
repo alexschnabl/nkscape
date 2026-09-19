@@ -17,6 +17,7 @@ FIRM = nk.Landscape(
     ),
 )
 Config = NDArray[np.int8]
+Proposals = tuple[NDArray[np.int8], ...]
 Rng = np.random.Generator
 
 
@@ -124,23 +125,28 @@ class ImitateTheBestEveryFifthPeriod(nk.Interaction):
     def apply(
         self,
         population: nk.Population,
-        proposed: Config,
+        proposals: Proposals,
         landscape: nk.Landscape,
         rng: Rng,
     ) -> ArrayLike:
         self.period += 1
+        first_choices = [ranked[0] for ranked in proposals]
         if self.period % 5:
-            return proposed
-        best = max(proposed, key=landscape.fitness)
-        return np.tile(best, (len(proposed), 1))
+            return first_choices
+        best = max(first_choices, key=landscape.fitness)
+        return np.tile(best, (len(proposals), 1))
 
 
 class DrawsRandomNumbersButChangesNothing(nk.Interaction):
     def apply(
-        self, population: nk.Population, proposed: Config, landscape: nk.Landscape, rng: Rng
+        self,
+        population: nk.Population,
+        proposals: Proposals,
+        landscape: nk.Landscape,
+        rng: Rng,
     ) -> ArrayLike:
         rng.random(7)
-        return proposed
+        return [ranked[0] for ranked in proposals]
 
 
 class AppliesWith(nk.Interaction):
@@ -148,14 +154,77 @@ class AppliesWith(nk.Interaction):
         self.answer = answer
 
     def apply(
-        self, population: nk.Population, proposed: Config, landscape: nk.Landscape, rng: Rng
+        self,
+        population: nk.Population,
+        proposals: Proposals,
+        landscape: nk.Landscape,
+        rng: Rng,
     ) -> ArrayLike:
+        first_choices = np.array([ranked[0] for ranked in proposals])
         if self.answer == "too few rows":
-            return proposed[:-1]
+            return first_choices[:-1]
         if self.answer == "a two":
-            return proposed + 2
-        proposed[0, 0] = 1 - proposed[0, 0]
-        return proposed
+            return first_choices + 2
+        proposals[0][0, 0] = 1 - proposals[0][0, 0]
+        return first_choices
+
+
+class SendsItsTwoBestNeighbours(nk.Agent):
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        order = np.argsort(landscape.neighbour_fitness(config))[::-1]
+        return landscape.neighbours(config)[order[:2]]
+
+
+class ChoosesTheBestProposalOfAnyone(nk.Interaction):
+    def __init__(self) -> None:
+        self.shapes: list[list[tuple[int, ...]]] = []
+        self.overruled = 0
+
+    def apply(
+        self,
+        population: nk.Population,
+        proposals: Proposals,
+        landscape: nk.Landscape,
+        rng: Rng,
+    ) -> ArrayLike:
+        self.shapes.append([ranked.shape for ranked in proposals])
+        everything = np.concatenate(proposals)
+        best = max(everything, key=landscape.fitness)
+        self.overruled = sum(not np.array_equal(ranked[0], best) for ranked in proposals)
+        return np.tile(best, (len(proposals), 1))
+
+    def record(self) -> dict[str, float]:
+        return {"overruled": self.overruled}
+
+
+class RemembersWhatItWasTold(OneRandomTry):
+    def __init__(self) -> None:
+        self.wanted: list[str] = []
+        self.got: list[str] = []
+        self.fitness_seen: list[float] = []
+
+    def step(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> ArrayLike:
+        wanted = np.asarray(super().step(config, landscape, rng, population))
+        self.wanted.append("".join(map(str, wanted)))
+        return wanted
+
+    def after_period(
+        self, config: Config, landscape: nk.Landscape, rng: Rng, population: nk.Population
+    ) -> None:
+        self.got.append("".join(map(str, config)))
+        self.fitness_seen.append(float(population.fitness.max()))
+
+    def record(self) -> dict[str, float]:
+        return {"told": len(self.got)}
+
+
+class RuleThatChangesWhatItRecords(ChoosesTheBestProposalOfAnyone):
+    def record(self) -> dict[str, float]:
+        return {"a": 1.0} if len(self.shapes) < 2 else {"b": 1.0}
 
 
 THREE_STARTS = [[0, 1, 0], [0, 1, 0], [1, 0, 0]]
@@ -180,6 +249,50 @@ def test_an_interaction_rule_changes_what_is_adopted() -> None:
     assert labels(result.configs[0]) == ["010", "000", "000", "000", "000", "111", "111"]
     assert labels(result.configs[1]) == ["010", "011", "001", "101", "101", "111", "111"]
     assert labels(result.configs[2]) == ["100", "110", "110", "110", "110", "111", "111"]
+
+
+def test_without_a_rule_the_first_of_several_proposals_is_adopted() -> None:
+    result = nk.run(FIRM, [SendsItsTwoBestNeighbours()], periods=1, rng=1, starts=[[0, 1, 0]])
+    assert labels(result.configs[0]) == ["010", "000"]
+
+
+def test_a_rule_gets_every_proposal_and_may_choose_among_them() -> None:
+    rule = ChoosesTheBestProposalOfAnyone()
+    agents = [SendsItsTwoBestNeighbours(), BestNeighbour()]
+    result = nk.run(FIRM, agents, periods=2, rng=1, starts=[[0, 1, 0], [1, 0, 1]], interaction=rule)
+    assert rule.shapes == [[(2, 3), (1, 3)]] * 2
+    assert labels(result.configs[0]) == ["010", "111", "111"]
+    assert labels(result.configs[1]) == ["101", "111", "111"]
+    assert result.interaction_extra["overruled"].tolist() == [0, 1, 1]
+
+
+@pytest.mark.parametrize("answer", [[[1, 0, 1], [1, 0]], [[[1, 0, 1]]], [[1, 0, 1], [1, 2, 1]]])
+def test_invalid_proposals_are_rejected(answer: ArrayLike) -> None:
+    with pytest.raises(ValueError, match=r"expected|only contain 0 and 1|inhomogeneous"):
+        nk.run(FIRM, [Returns(answer)], periods=1, rng=1)
+
+
+def test_after_period_tells_the_agent_what_it_really_got() -> None:
+    agents = [RemembersWhatItWasTold(), RemembersWhatItWasTold(), RemembersWhatItWasTold()]
+    rule = ImitateTheBestEveryFifthPeriod()
+    result = nk.run(FIRM, agents, periods=6, rng=3, starts=THREE_STARTS, interaction=rule)
+    for a, agent in enumerate(agents):
+        assert agent.got == labels(result.configs[a])[1:]
+        assert agent.fitness_seen == result.fitness.max(axis=0)[1:].tolist()
+    assert agents[2].wanted[4] == "110"
+    assert agents[2].got[4] == "111"
+    assert result.extra["told"].tolist() == [[0, 1, 2, 3, 4, 5, 6]] * 3
+
+
+def test_a_rule_without_record_leaves_interaction_extra_empty() -> None:
+    rule = ImitateTheBestEveryFifthPeriod()
+    result = nk.run(FIRM, three_agents(), periods=2, rng=3, interaction=rule)
+    assert result.interaction_extra == {}
+
+
+def test_a_rule_that_changes_its_recorded_names_is_rejected() -> None:
+    with pytest.raises(ValueError, match=r"the interaction rule started with \['a'\].*\['b'\]"):
+        nk.run(FIRM, three_agents(), periods=5, rng=1, interaction=RuleThatChangesWhatItRecords())
 
 
 def test_result_shapes_put_the_agent_first() -> None:
@@ -315,7 +428,7 @@ def test_an_agent_that_edits_what_it_is_shown_is_stopped(agent: nk.Agent) -> Non
         nk.run(FIRM, [agent], periods=2, rng=1)
 
 
-@pytest.mark.parametrize("answer", [[1, 0], [1, 2, 0], [[1, 0, 1]]])
+@pytest.mark.parametrize("answer", [[1, 0], [1, 2, 0]])
 def test_an_agent_that_returns_no_valid_configuration_is_stopped(answer: ArrayLike) -> None:
     with pytest.raises(ValueError, match=r"expected 3 values|only contain 0 and 1"):
         nk.run(FIRM, [Returns(answer)], periods=2, rng=1)
