@@ -27,7 +27,12 @@ docs/_build/
 
 # Experiment outputs
 experiments/**/output/
-examples/**
+
+# Scratch: lesson scripts and experiments (kept local)
+tmp/
+
+# Notebooks
+.ipynb_checkpoints/
 
 # Editors / OS
 .idea/
