@@ -22,12 +22,24 @@ class RunResult:
     Where every agent was in every period, and what that was worth.
 
     Row a belongs to `agents[a]`; every agent that ever existed keeps its row, including those
-    born during the run. `alive[a, t]` says whether agent a existed after period t, `configs[a, t]`
-    is its configuration and `fitness[a, t]` its fitness; t = 0 is the start. Where an agent did
-    not exist, the configuration is all -1 and the fitness NaN. `extra[name][a, t]` holds what the
-    agents' `record` returned, NaN where an agent does not record that name or did not exist.
-    `rule_extra[name][t]` holds what the population rules' `record` returned. All arrays are
-    read-only.
+    born during the run. Column t is the state after period t; t = 0 is the start. All arrays
+    are read-only.
+
+    Attributes
+    ----------
+    configs
+        `configs[a, t]` is the configuration of agent a. All -1 where the agent did not exist.
+    fitness
+        `fitness[a, t]` is the fitness of agent a. NaN where the agent did not exist.
+    alive
+        `alive[a, t]` says whether agent a existed.
+    extra
+        `extra[name][a, t]` holds what the agents' `record` returned. NaN where an agent does
+        not record that name or did not exist.
+    rule_extra
+        `rule_extra[name][t]` holds what the population rules' `record` returned.
+    agents
+        The agent objects, those born during the run included.
     """
 
     configs: NDArray[np.int8]
@@ -50,10 +62,15 @@ def run(
     """
     Let a population of agents walk a landscape for a number of periods.
 
-    Every period runs in this order: every agent's `before_period`; every agent's `step`, each
-    seeing where everybody was at the end of the last period; the population rules, if any,
-    decide what is really adopted, who dies and who is born; every agent's `after_period` is told
-    the outcome. Agents that do not exist are never called.
+    Every period runs in this order:
+
+    1. Every agent's `before_period`.
+    2. Every agent's `step`, each seeing where everybody was at the end of the last period.
+    3. The population rules, if any, decide what is really adopted, who dies and who is born.
+    4. Every agent's `after_period` is told the outcome.
+    5. Every agent's and every rule's `record`.
+
+    Agents that do not exist are never called.
 
     Parameters
     ----------
@@ -75,9 +92,13 @@ def run(
         decided. Without rules, every agent gets its first choice.
     build_cube
         Whether to build the landscape's fitness cube first, which makes every period about ten
-        times faster. By default it is built when the run is long enough to repay the cost of
-        building it: agents x periods >= 2^N x N / 40,000 (and N is within the enumeration
-        limit). `True` always builds it, `False` never does.
+        times faster.
+
+        - `None` (default): built when the run is long enough to repay the cost of building it,
+          that is when agents x periods >= 2^N x N / 40,000 and N is within the enumeration
+          limit.
+        - `True`: always built.
+        - `False`: never built.
     """
     if periods < 0:
         raise ValueError(f"periods must not be negative, got {periods}")

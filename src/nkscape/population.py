@@ -21,13 +21,22 @@ class Population:
     """
     The state of the world as the agents and the population rules see it.
 
-    Row a belongs to agent a for the whole run. `configs` and `fitness` say where every agent
-    stands and what that is worth; `alive` says which agents exist. For an agent that does not
-    exist the configuration is all -1 and the fitness NaN. `period` is the period being played,
-    1 for the first. All arrays are read-only.
+    Row a belongs to agent a for the whole run. All arrays are read-only.
 
-    In `before_period`, `step` and `decide` the arrays show the end of the last period, so nobody
-    sees a move made in the current one; in `after_period` they show its outcome.
+    - In `before_period`, `step` and `decide` the arrays show the end of the last period, so
+      nobody sees a move made in the current one.
+    - In `after_period` they show the outcome of the current period.
+
+    Attributes
+    ----------
+    configs
+        Where every agent stands, one row per agent. All -1 for an agent that does not exist.
+    fitness
+        What that is worth. NaN for an agent that does not exist.
+    period
+        The period being played, 1 for the first.
+    alive
+        Which agents exist.
     """
 
     configs: NDArray[np.int8]

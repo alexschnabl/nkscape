@@ -30,11 +30,13 @@ class ContributionTables:
         One table per decision, each shaped to fit its row of the matrix. They are taken one at
         a time, so a generator that makes each table only when asked keeps memory low.
     dtype
-        How the numbers are stored: `float64` (default, 8 bytes each) or `float32` (4 bytes
-        each, about 7 significant digits). Everything computed from the tables - contributions,
-        fitness, the fitness cube - uses the same size. `float32` halves the memory; on very
-        large landscapes it can make a few neighbouring configurations exactly equal that are
-        not equal in `float64`.
+        How the numbers are stored. Everything computed from the tables - contributions,
+        fitness, the fitness cube - uses the same size.
+
+        - `float64` (default): 8 bytes each.
+        - `float32`: 4 bytes each, about 7 significant digits. Halves the memory; on very large
+          landscapes it can make a few neighbouring configurations exactly equal that are not
+          equal in `float64`.
 
     Raises
     ------
