@@ -567,7 +567,7 @@ def test_an_agent_that_returns_no_valid_configuration_is_stopped(answer: ArrayLi
 @pytest.mark.parametrize(
     ("answer", "message"),
     [
-        ("too few rows", "expected 3 configurations"),
+        ("too few rows", "must return 3 configurations"),
         ("a two", "0 and 1"),
         ("edits its input", "read-only"),
     ],

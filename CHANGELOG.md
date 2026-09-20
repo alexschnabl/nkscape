@@ -32,15 +32,21 @@ All notable changes to this project are documented here. The format follows
   `record()` logs extra values per period.
 - `nk.run(landscape, agents, periods, rng, starts=None, rules=(), build_cube=None)` runs a
   population in lockstep. Every period: every agent's `before_period`; every agent's `step`, each
-  seeing the same read-only `nk.Population` snapshot (everybody's configuration and fitness, and
-  `period`, the period being played); then the `nk.PopulationRule`s, applied one after the other,
-  get the proposals and `decide` what is really adopted (without rules, the first choice); then
-  every agent's `after_period`. Returns an `nk.RunResult` with `configs[agent, period]`,
-  `fitness[agent, period]`, `extra` (from the agents' `record()`) and `rule_extra` (from the
-  rules' `record()`). Every agent and every rule has its own random stream, so without rules an
-  agent walks the same way alone as in a crowd. The fitness cube is built first when the run is
-  long enough to repay it (agents x periods >= 2^N x N / 40,000); `build_cube=True/False`
-  overrides that.
+  seeing the same read-only `nk.Population` snapshot (everybody's configuration and fitness, who
+  is `alive`, and `period`, the period being played); then the `nk.PopulationRule`s, applied one
+  after the other, get the proposals and `decide` what is really adopted (without rules, the
+  first choice); then every agent's `after_period`. Every agent and every rule has its own random
+  stream, so without rules an agent walks the same way alone as in a crowd. The fitness cube is
+  built first when the run is long enough to repay it (agents x periods >= 2^N x N / 40,000);
+  `build_cube=True/False` overrides that.
+- Births and deaths: a rule may return `nk.PopulationDecision(configs, dies=[...], born=[(agent, start)])`
+  instead of plain configurations. Both take effect at the end of the period. An agent that dies
+  is never called again; a newcomer gets a new row and its own random stream, and is first called
+  in the next period. The population may grow without limit, shrink, or die out.
+- `nk.RunResult`: `configs[agent, period]`, `fitness[agent, period]`, `alive[agent, period]`,
+  `extra` (from the agents' `record()`), `rule_extra` (from the rules' `record()`) and `agents`
+  (row a belongs to `agents[a]`). Every agent that ever existed keeps its row; where it did not
+  exist the configuration is -1 and the fitness NaN.
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
   and then rounded, so a seed gives the same landscape in either size. Default stays float64.

@@ -3,12 +3,17 @@ The population: what agents can see of each other, and rules applied to all of t
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from nkscape.landscape import Landscape
+
+if TYPE_CHECKING:
+    from nkscape.agent import Agent
 
 
 @dataclass(frozen=True)
@@ -16,15 +21,41 @@ class Population:
     """
     The state of the world as the agents and the population rules see it.
 
-    `configs` and `fitness` say where every agent stands and what that is worth; row a belongs
-    to agent a, and both arrays are read-only. `period` is the period being played, 1 for the
-    first. In `before_period`, `step` and `decide` the arrays show the end of the last period,
-    so nobody sees a move made in the current one; in `after_period` they show its outcome.
+    Row a belongs to agent a for the whole run. `configs` and `fitness` say where every agent
+    stands and what that is worth; `alive` says which agents exist. For an agent that does not
+    exist the configuration is all -1 and the fitness NaN. `period` is the period being played,
+    1 for the first. All arrays are read-only.
+
+    In `before_period`, `step` and `decide` the arrays show the end of the last period, so nobody
+    sees a move made in the current one; in `after_period` they show its outcome.
     """
 
     configs: NDArray[np.int8]
     fitness: NDArray[np.floating]
     period: int
+    alive: NDArray[np.bool_]
+
+
+@dataclass(frozen=True)
+class PopulationDecision:
+    """
+    What a population rule decides when it also changes who exists.
+
+    Parameters
+    ----------
+    configs
+        The configurations the agents end up with, one row per agent. Rows of agents that do
+        not exist are ignored.
+    dies
+        The agents that stop existing at the end of this period, by row number.
+    born
+        The agents that start existing at the end of this period: for each, a new agent object
+        and its starting configuration.
+    """
+
+    configs: ArrayLike
+    dies: Sequence[int] = ()
+    born: Sequence[tuple["Agent", ArrayLike]] = ()
 
 
 class PopulationRule(ABC):
@@ -32,7 +63,7 @@ class PopulationRule(ABC):
     A rule applied to the whole population once per period, after every agent has stepped.
 
     It covers what is done to agents rather than decided by them: selection, vetoes, a central
-    choice among proposals. It may keep memory between periods in `self`.
+    choice among proposals, births and deaths. It may keep memory between periods in `self`.
     """
 
     @abstractmethod
@@ -42,9 +73,12 @@ class PopulationRule(ABC):
         proposals: tuple[NDArray[np.int8], ...],
         landscape: Landscape,
         rng: np.random.Generator,
-    ) -> ArrayLike:
+    ) -> "ArrayLike | PopulationDecision":
         """
         The configurations the agents really end up with, one row per agent.
+
+        Return a `PopulationDecision` instead to also say which agents die and which are born;
+        births and deaths take effect at the end of the period.
 
         Parameters
         ----------
@@ -53,8 +87,9 @@ class PopulationRule(ABC):
         proposals
             What every agent's `step` returned. `proposals[a]` holds the proposals of agent a,
             one per row, best first; `proposals[a][0]` is its first choice. Agents may send
-            different numbers of proposals. Read-only. When several rules are given, a later
-            rule gets what the rule before it decided, as one proposal per agent.
+            different numbers of proposals. For an agent that does not exist it is one row of
+            -1. Read-only. When several rules are given, a later rule gets what the rule before
+            it decided, as one proposal per agent.
         landscape
             The landscape.
         rng
