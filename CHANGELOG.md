@@ -47,6 +47,14 @@ All notable changes to this project are documented here. The format follows
   `extra` (from the agents' `record()`), `rule_extra` (from the rules' `record()`) and `agents`
   (row a belongs to `agents[a]`). Every agent that ever existed keeps its row; where it did not
   exist the configuration is -1 and the fitness NaN.
+- `nk.agents.HillClimber(pick, long_jumps=False)`: the first ready-made agent. Once per period it
+  moves to a strictly better neighbour and stays if there is none. `pick` is required:
+  `"first"` tries the decisions in order 0, 1, 2, ... and takes the first better neighbour (no
+  randomness), `"random"` takes any better neighbour with equal probability, `"best"` takes the
+  highest one (exact ties broken at random). With `long_jumps=True` it also draws one
+  configuration uniformly at random each period and takes that instead if it is strictly better
+  than the neighbour picked. `pick="first"` with `long_jumps=True` is the search of Levinthal
+  (1997), checked against the original program.
 - `dtype=np.float32` on `ContributionTables` and the `Landscape` builders: tables, contributions,
   fitness and the fitness cube use 4 instead of 8 bytes per number. Numbers are drawn as float64
   and then rounded, so a seed gives the same landscape in either size. Default stays float64.

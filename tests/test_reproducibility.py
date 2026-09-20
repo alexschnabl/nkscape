@@ -129,3 +129,55 @@ def test_pinned_walks_for_seed_42() -> None:
     ]
     assert walks[1] == ["0001100101"] * 11 + ["0000100101"] * 2
     assert result.fitness[:, -1].tolist() == [0.5389108750872633, 0.6054437480998407]
+
+
+def test_pinned_hill_climber_walks_for_seed_42() -> None:
+    land = nk.Landscape.random_k(10, 3, rng=42)
+    agents = [
+        nk.agents.HillClimber("first"),
+        nk.agents.HillClimber("random"),
+        nk.agents.HillClimber("first", long_jumps=True),
+        nk.agents.HillClimber("best"),
+    ]
+    result = nk.run(land, agents, periods=12, rng=42)
+    walks = [["".join(map(str, config)) for config in agent] for agent in result.configs]
+    assert (
+        walks[0]
+        == [
+            "0011000111",
+            "1011000111",
+            "1111000111",
+            "1111001111",
+            "0111001111",
+            "0011001111",
+            "0011001101",
+        ]
+        + ["0010001101"] * 6
+    )
+    assert (
+        walks[1]
+        == [
+            "0001100101",
+            "0000100101",
+            "0000101101",
+            "0000001101",
+        ]
+        + ["0010001101"] * 9
+    )
+    assert walks[2] == ["1100001001", "1000001001"] + ["0000000000"] * 11
+    assert (
+        walks[3]
+        == [
+            "1100111111",
+            "1100111011",
+            "1110111011",
+            "1111111011",
+        ]
+        + ["1111101011"] * 9
+    )
+    assert result.fitness[:, -1].tolist() == [
+        0.7092154989468789,
+        0.7092154989468789,
+        0.7054775687210503,
+        0.785100747115253,
+    ]
