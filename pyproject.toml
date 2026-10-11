@@ -37,6 +37,11 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
 ]
+notebooks = [
+    "ipykernel>=7.3.0",
+    "matplotlib>=3.11.2",
+    "nbmake>=1.5.5",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nkscape"]
@@ -52,6 +57,10 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 # D213: docstring text starts on the line after the opening quotes
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY", "PT", "RUF", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+# notebooks hold the article's readings as one line per K
+"*.ipynb" = ["E501"]
 
 [tool.mypy]
 strict = true
