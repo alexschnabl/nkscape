@@ -6,8 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-11
+
 ### Added
 
+- `examples/levinthal_1997`: a notebook reproducing Figures 1 to 9 of Levinthal (1997) with the
+  library, with the figures saved alongside it.
 - `InteractionMatrix`: an N×N matrix of 0/1 built from user-supplied rows, validated to be
   square, to contain only 0 and 1, and to have an all-1 diagonal.
 - `InteractionMatrix.k_per_row` and `InteractionMatrix.k`: K is read from the matrix; `k` raises

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nkscape"
-version = "0.0.1"
+version = "0.1.0"
 description = "Kauffman NK fitness landscapes and NK-based agent-based models of organisations"
 readme = "README.md"
 license = "MIT"
@@ -13,7 +13,7 @@ requires-python = ">=3.12"
 authors = [{ name = "Alexander Schnabl" }]
 keywords = ["NK model", "fitness landscape", "agent-based model", "organisation science", "simulation"]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",

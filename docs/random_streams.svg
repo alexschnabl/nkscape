@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="300" viewBox="0 0 820 300" font-family="Helvetica, Arial, sans-serif" font-size="13" fill="#1f2328">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="820" height="300" fill="#ffffff"/>
+
+  <!-- left: a landscape from one seed -->
+  <text x="30" y="34" font-size="15" font-weight="bold">Landscape.random_k(n, k, rng)</text>
+
+  <rect x="30" y="56" width="120" height="44" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.4"/>
+  <text x="90" y="83" text-anchor="middle" font-weight="bold">rng (seed)</text>
+
+  <rect x="220" y="56" width="150" height="44" rx="6" fill="#fbefff" stroke="#8250df" stroke-width="1.4"/>
+  <text x="295" y="83" text-anchor="middle">interaction matrix</text>
+
+  <rect x="220" y="120" width="150" height="44" rx="6" fill="#fbefff" stroke="#8250df" stroke-width="1.4"/>
+  <text x="295" y="147" text-anchor="middle">contribution tables</text>
+
+  <path d="M 150 78 L 218 78" fill="none" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M 150 78 L 185 78 L 185 142 L 218 142" fill="none" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="178" y="114" text-anchor="end" font-size="11" fill="#57606a">spawn(2)</text>
+  <text x="30" y="266" font-size="11" fill="#57606a">entry p of table i is a fixed draw of the tables stream</text>
+
+  <!-- divider -->
+  <line x1="420" y1="30" x2="420" y2="270" stroke="#d0d7de" stroke-width="1"/>
+
+  <!-- right: a run from one seed -->
+  <text x="450" y="34" font-size="15" font-weight="bold">nk.run(landscape, agents, periods, rng, rules)</text>
+
+  <rect x="450" y="56" width="120" height="44" rx="6" fill="#f6f8fa" stroke="#57606a" stroke-width="1.4"/>
+  <text x="510" y="83" text-anchor="middle" font-weight="bold">rng (seed)</text>
+
+  <rect x="640" y="56" width="150" height="44" rx="6" fill="#fff8c5" stroke="#9a6700" stroke-width="1.4"/>
+  <text x="715" y="76" text-anchor="middle">one stream</text>
+  <text x="715" y="92" text-anchor="middle">per population rule</text>
+
+  <rect x="640" y="130" width="150" height="44" rx="6" fill="#dafbe1" stroke="#1a7f37" stroke-width="1.4"/>
+  <text x="715" y="150" text-anchor="middle">per agent: one stream</text>
+  <text x="715" y="166" text-anchor="middle">for its start</text>
+
+  <rect x="640" y="196" width="150" height="44" rx="6" fill="#dafbe1" stroke="#1a7f37" stroke-width="1.4"/>
+  <text x="715" y="216" text-anchor="middle">per agent: one stream</text>
+  <text x="715" y="232" text-anchor="middle">for its steps</text>
+
+  <path d="M 570 78 L 638 78" fill="none" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M 570 78 L 605 78 L 605 152 L 638 152" fill="none" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <path d="M 605 152 L 605 218 L 638 218" fill="none" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrow)"/>
+  <text x="450" y="266" font-size="11" fill="#57606a">an agent's streams do not depend on the other agents or on the rules</text>
+</svg>
