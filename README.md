@@ -12,12 +12,12 @@ tradition of Levinthal (1997), Rivkin & Siggelkow (2003), Ethiraj & Levinthal (2
 ```python
 import nkscape as nk
 
-landscape = nk.Landscape.next_k(10, 3, rng=42)        # N = 10 decisions, K = 3
-print(landscape.count_peaks())                        # 14
+landscape = nk.Landscape.next_k(10, 3, rng=42)  # N = 10 decisions, K = 3
+print(landscape.count_peaks())  # 14
 
 agents = [nk.agents.HillClimber("first") for _ in range(100)]
 result = nk.run(landscape, agents, periods=20, rng=1)
-print(result.fitness[:, -1].mean() / landscape.global_max())   # 0.944
+print(result.fitness[:, -1].mean() / landscape.global_max())  # 0.944
 ```
 
 ## Installation
