@@ -25,9 +25,9 @@ classifiers = [
 dependencies = ["numpy>=2.1"]
 
 [project.urls]
-Repository = "https://github.com/SK4P3/nkscape"
-Issues = "https://github.com/SK4P3/nkscape/issues"
-Changelog = "https://github.com/SK4P3/nkscape/blob/main/CHANGELOG.md"
+Repository = "https://github.com/alexschnabl/nkscape"
+Issues = "https://github.com/alexschnabl/nkscape/issues"
+Changelog = "https://github.com/alexschnabl/nkscape/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = [

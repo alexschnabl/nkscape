@@ -1,6 +1,6 @@
 # nkscape
 
-[![CI](https://github.com/SK4P3/nkscape/actions/workflows/ci.yml/badge.svg)](https://github.com/SK4P3/nkscape/actions/workflows/ci.yml)
+[![CI](https://github.com/alexschnabl/nkscape/actions/workflows/ci.yml/badge.svg)](https://github.com/alexschnabl/nkscape/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/nkscape.svg)](https://pypi.org/project/nkscape/)
 [![Python](https://img.shields.io/pypi/pyversions/nkscape.svg)](https://pypi.org/project/nkscape/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
